@@ -1,0 +1,210 @@
+44c44
+<                                        int numFrontStrips) :
+---
+>                                        int numFrontStrips) : // see DetectorDriver for details; by YX;
+109a110,125
+> 
+>   //---------------------------by Yongchi; strip vs. energy; 03/04/2015
+>   // 707 checked
+>   DeclareHistogram2D(DD_DECAY_STRIPVSENERGY_F, 
+> 		     decayEnergyBins, positionBins, "Strip vs DecayEF");
+>   // 708 checked
+>   DeclareHistogram2D(DD_DECAY_STRIPVSENERGY_B, 
+> 		     decayEnergyBins, positionBins, "Strip vs DecayEB");
+>   //-------------------------------------------------------------------
+>   //---------------------------by Yongchi; for temp check use; 03/27/2015
+>   //709 checked
+>   DeclareHistogram2D(DD_0329CHECK1, decayEnergyBins, positionBins, "DSSD chF vs. DE>1500");
+>   //710 checked
+>   DeclareHistogram2D(DD_0329CHECK2, decayEnergyBins, positionBins, "DSSD chF vs. DE<1500");
+>   //---------------------------------------------------------------------
+> 
+453c469
+<             pair<StripEvent, bool> match2(ev2x, false);
+---
+>             pair<StripEvent, bool> match2(ev2x, false);// match2 is a variable; by YX
+471c487
+<         StripEvent ev((*ity)->GetCalEnergy(), 
+---
+>       StripEvent ev((*ity)->GetCalEnergy(), // filterEnergyCal??? by YX
+475c491
+< 		      (*ity)->GetTrace());
+---
+> 		      (*ity)->GetTrace());// deliver information of ChanEvent to StripEvent; by YX
+480c496
+< 	const Trace& traceB = (*ity)->GetTrace();
+---
+> 	const Trace& traceB = (*ity)->GetTrace();// some other information also stored in trace; by YX
+549c565
+<       if (bestDtime < timeWindow_) {
+---
+>       if (bestDtime < timeWindow_) { // timeWindow_ delivered from DetectorDriver; by YX
+582c598,599
+<       xyEventsEMatch_.push_back(pair<StripEvent, StripEvent>(evf, evb));
+---
+>       xyEventsEMatch_.push_back(pair<StripEvent, StripEvent>(evf, evb));// pair events on strips; by YX
+>       // CalEnergy then goes to 702/703 and 707/708
+764d780
+<       
+765a782,791
+>       //---------------------by Yongchi; calibrated energies; 03/03/2015
+>       double calib_trace_energy1F = 0;
+>       double calib_trace_energy2F = 0;
+>       double calib_trace_energy1B = 0;
+>       double calib_trace_energy2B = 0;
+>       //--------------------------------------------------------------
+>       //---------------------by Yongchi; single calibrated energies; 03/04/2015
+>       double EnergyF = 0;
+>       double EnergyB = 0; // can be filter energy or on board energy;
+>       //--------------------------------------------------------------
+804,811c830,832
+<       if(!hasMcp){
+< 	
+< 	//if(xPosition>=23 && xPosition<=25 && yPosition>=11 && yPosition<=13){
+< 		if(xPosition==24 && yPosition==12){
+< 		  //	  cout << "Decay " <<xPosition << " " << yPosition  << " " << xEnergy << " " << yEnergy <<  " " << xTime  <<endl;	  
+< 	}
+< 	
+< 
+---
+>       //if(!hasMcp){ // by Yongchi; condition changed; 03/03/2015
+>       if(1){ 
+>      
+813,815c834,835
+< 	plot(DD_DSSDDFRONT_POSENERGY,xEnergy,xPosition);
+< 	plot(DD_DSSDDBACK_POSENERGY,yEnergy,yPosition);
+< 	
+---
+> 	plot(DD_DSSDDFRONT_POSENERGY,xEnergy,xPosition);// 702
+> 	plot(DD_DSSDDBACK_POSENERGY,yEnergy,yPosition);// 703, filled with (x)yEnergy = (*it).(first)second.E; by YX
+823a844,892
+> 
+> 	//----------------------- by Yongchi; fill spectra 707/708; 03/04/2015
+> 
+> 	EnergyF = (*it).first.E;
+> 	EnergyB = (*it).second.E; // use onboard energy rather than filtered;
+> 	// at this point, 702/703 should be the same with 707/708
+> 	
+> 
+> 	if(EnergyF > 0 && EnergyB > 0)
+> 	{
+> 	  {
+> 	    	    
+> 	    double singleTimeF = 0;
+> 	    double singleTimeB = 0;
+> 	    //preAlphaTimeF = xTrace.GetValue("filterTime");
+> 	    //preAlphaTimeB = yTrace.GetValue("filterTime");
+> 	    singleTimeF = (*it).first.t;
+> 	    singleTimeB = (*it).second.t;// real time coming with StripEvent;
+> 
+> 	    double singlePosF = 0;
+> 	    double singlePosB = 0;
+> 	    singlePosF = 40-(*it).first.pos;
+> 	    singlePosB = 40-(*it).second.pos;
+> 	    
+> 	    plot(DD_DECAY_STRIPVSENERGY_F, EnergyF, singlePosF); // 707
+> 	    plot(DD_DECAY_STRIPVSENERGY_B, EnergyB, singlePosB); // 708
+> 
+> 	    //------------- conditional filling, front only; by Yongchi; 03/29/2015
+> 	    if(EnergyB > 1500)
+> 	      plot(DD_0329CHECK1, EnergyB, singlePosB);// 709
+> 	    if(EnergyB < 1500)
+> 	      plot(DD_0329CHECK2, EnergyB, singlePosB);// 710
+> 	    //---------------------------------------------------------------------
+> 
+> 	    /*
+> 	    {
+> 	    ofstream outfile;
+> 	    outfile.open("results.txt", std::ofstream::out | std::ofstream::app);// output information of a single pulse to a text file; 
+> 	    	    
+> 	    outfile << setw(10) << EnergyF << setw(6) << singlePosF << setw(14) << singleTimeF << endl;
+> 	    outfile << setw(10) << EnergyB << setw(6) << singlePosB << setw(14) << singleTimeB << endl; 
+> 	    outfile.close();
+> 	    }
+> 	    */
+> 	  }
+> 	}
+> 
+> 	//--------------------------------------------------------------------
+> 
+840a910,920
+> 
+> 	  //-------------------------------- by Yongchi; get calib_trace_energies; 03/03/2015
+> 	  if(xTrace.HasValue("filterEnergyCal"))
+> 	    calib_trace_energy1F = xTrace.GetValue("filterEnergyCal");
+> 	  if(xTrace.HasValue("filterEnergy2Cal"))
+> 	    calib_trace_energy2F = xTrace.GetValue("filterEnergy2Cal");
+> 	  if(yTrace.HasValue("filterEnergyCal"))
+> 	    calib_trace_energy1B = yTrace.GetValue("filterEnergyCal");
+> 	  if(yTrace.HasValue("filterEnergyCal"))
+> 	    calib_trace_energy2B = yTrace.GetValue("filterEnergy2Cal");
+> 	  //------------------------------------------------------------------------------------
+846,850c926,958
+< 	  
+< 	  cout << "=====================DOUBLE TRACES=== 1F:" << endl;
+< 	  stringstream ss;
+< 	  ss << trace_energy1F << " 2F: " <<trace_energy2F << " 1B: " << trace_energy1B << " 2B: " << trace_energy2B << " xpos: " << xPosition << " ypos: " << yPosition << endl;
+< 	  Notebook::get()->report(ss.str());
+---
+> 	  bool canFill = false;
+> 	  if((trace_energy1F - 100)*(trace_energy1F - 400) < 0 &&
+> 	     (trace_energy2F - 100)*(trace_energy2F - 400) < 0 &&
+> 	     (trace_energy1B - 100)*(trace_energy1B - 400) < 0 &&
+> 	     (trace_energy2B - 100)*(trace_energy2B - 400) < 0 )
+> 	    canFill = true;
+> 	  if(canFill){
+> 	    cout << "====================DOUBLE TRACES=========================" << endl;
+> 	   
+> 	    stringstream ss;
+> 	    ss << trace_energy1F << " 2F: " <<trace_energy2F << " 1B: " << trace_energy1B << " 2B: " << trace_energy2B << " xpos: " << xPosition << " ypos: " << yPosition << endl;
+> 	    
+> 	  //--------------- by Yongchi; output calibrated energies; 03/03/2015
+> 	    /*
+> 	    cout << "------------filtered energies(UNCALIBRATED): " << endl;
+> 	    cout << "1F: " << trace_energy1F << ", " << "2F: " << trace_energy2F << endl;
+> 	    cout << "1B: " << trace_energy1B << ", " << "2B: " << trace_energy2B << endl;
+> 	    cout << " front ratio(1st/2nd): " << trace_energy1F/trace_energy2F << endl;
+> 	    cout << " back ratio(1st/2nd): " << trace_energy1B/trace_energy2B << endl;
+> 	    */
+> 
+> 	    cout<< "-------------CALIBRATED energies: " << endl;
+> 	    cout << "1F: " << calib_trace_energy1F << ", " << "2F: " << calib_trace_energy2F << endl;
+> 	    cout << "1B: " << calib_trace_energy1B << ", " << "2B: " << calib_trace_energy2B << endl;
+> 	    cout << " front ratio(1st/2nd): " << calib_trace_energy1F/calib_trace_energy2F << endl;
+> 	    cout << " back ratio(1st/2nd): " << calib_trace_energy1B/calib_trace_energy2B << endl << endl;
+> 	    
+> 	    cout << "front position: " << xPosition << endl;//"; front time 1: " << trace_time1F << endl;
+> 	    cout << "back position: " << yPosition << endl;//"; back time 1: " << trace_time1B << endl;
+> 	    
+> 	    cout << "front time interval: " << trace_time2F - trace_time1F << endl;
+> 	    cout << "back time interval: " << trace_time2B - trace_time1B << endl;
+> 	    cout << "==========================================================" << endl << endl << endl;
+852,856c960,971
+< 	  for(vector<int>::iterator it = xTrace.begin();it != xTrace.end();it++){	   
+< 	    plot(DD_DOUBLETRACE_FRONT_WITHOUT_MWPC,it-xTrace.begin(),traceNum,*it);
+< 	  }
+< 	  for(vector<int>::iterator it = yTrace.begin();it != yTrace.end();it++){	   
+< 	    plot(DD_DOUBLETRACE_BACK_WITHOUT_MWPC,it-yTrace.begin(),traceNum,*it);
+---
+> 	    //---------------------------------------------------------------------
+> 	    
+> 	    Notebook::get()->report(ss.str());
+> 	    
+> 	    for(vector<int>::iterator it = xTrace.begin();it != xTrace.end();it++){	   
+> 	      plot(DD_DOUBLETRACE_FRONT_WITHOUT_MWPC,it-xTrace.begin(),traceNum,*it);
+> 	    }
+> 	    for(vector<int>::iterator it = yTrace.begin();it != yTrace.end();it++){	   
+> 	      plot(DD_DOUBLETRACE_BACK_WITHOUT_MWPC,it-yTrace.begin(),traceNum,*it);
+> 	    }
+> 	    traceNum++;
+> 	    
+858d972
+< 	  traceNum++;
+914c1028
+<     frontTime   = evf.t;
+---
+>     frontTime   = evf.t;// evf;by YX
+942c1056
+<     corr.CorrelateOld(event,type,frontPos,backPos,frontTime);
+---
+>     corr.CorrelateOld(event,type,frontPos,backPos,frontTime);// frontTime? by YX

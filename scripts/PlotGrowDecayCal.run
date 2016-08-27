@@ -1,0 +1,20 @@
+from Pyspectr.pydamm import *
+e=Experiment('/home/pixie16/ntb/traces_test/pixie_scan/23JanAT.his')
+e.dl(2000,8000)
+e.gy(7150,(0,250))
+e.gy(7151,(25,250))
+e.gy(7152,(25,250))
+e.gy(7153,(25,250))
+e.gy(7154,(25,250))
+e.gy(7155,(25,250))
+e.gy(7156,(25,250))
+e.gy(7157,(25,250))
+e.gy(7158,(25,250))
+
+e.d(e.plots[-9],e.plots[-8],e.plots[-7],e.plots[-6],e.plots[-5],e.plots[-4],e.plots[-3],e.plots[-2],e.plots[-1])
+
+    
+
+
+
+

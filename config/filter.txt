@@ -1,0 +1,7 @@
+filter parameters
+fast: rise gap threshold
+energy: rise gap
+second trigger: rise gap threshold
+3 5 60
+10 30
+3 5 60

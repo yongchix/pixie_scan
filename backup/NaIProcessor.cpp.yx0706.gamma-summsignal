@@ -1,0 +1,201 @@
+/** \file NaIProcessor.cpp
+ * NaI class takes the signals from the mcp detector
+ *   and calculates a 2D position based on the readout
+ * SNL 2-2-08, Modified DTM 9-09
+ */
+#include "DammPlotIds.hpp"
+#include "NaIProcessor.hpp"
+#include "RawEvent.hpp"
+#include<iostream>
+#include<fstream>
+#include<iomanip>
+//#include "Public.hpp" // by Yongchi Xiao; 06/25/205
+
+//#include "Dssd4JAEAProcessor.hpp" // added by Yongchi Xiao; 06/23/2015
+
+using std::string;
+using std::vector;
+using std::cout;
+using std::endl;
+
+using namespace dammIds::nai;
+using namespace std;
+
+namespace dammIds { // offset = 930; range = 20
+  namespace nai {	
+    const int DD_POSENE = 0;
+    const int D_SUM1    = 1;
+    const int D_SUM2    = 2;
+    const int D_SUMALL  = 3;
+    const int D_ENE     = 4;
+    const int DD_ENE_V_T = 15;
+    const int D_INT_DSSD_NAI = 17;// id for DSSD-NaI time interval; 
+
+  }
+}
+void NaIProcessor::NaIData::Clear(void)
+{
+}
+
+NaIProcessor::NaIProcessor(void) : EventProcessor(OFFSET, RANGE, "nai")
+{
+  associatedTypes.insert("nai");
+}
+
+void NaIProcessor::DeclarePlots(void)
+{  
+  const int posBins      = S4; //    16
+  const int energyBins   = SE; // 16384
+  const int energyBins2  = SD; // 8192
+  const int energyBins3  = SB; // 2048
+
+  DeclareHistogram2D(DD_POSENE, posBins, energyBins, "NaI Position and Energy"); // 930
+  
+  DeclareHistogram1D(D_SUM1,energyBins2,"Nai sum 0-3");//931
+  DeclareHistogram1D(D_SUM2,energyBins2,"Nai sum 4-7");// 932
+  DeclareHistogram1D(D_SUMALL,energyBins2,"Nai sum 0-8");// 933
+  
+  DeclareHistogram1D(D_ENE,energyBins2,"NaI ch 0"); //934
+  DeclareHistogram1D(D_ENE+1,energyBins2,"NaI ch 1");
+  DeclareHistogram1D(D_ENE+2,energyBins2,"NaI ch 2");
+  DeclareHistogram1D(D_ENE+3,energyBins2,"NaI ch 3");
+
+  // the below can be used for plot barrel energy; by Yongchi Xiao; 06/28/2015
+  DeclareHistogram2D(D_ENE+4,energyBins2,energyBins3,"NaI4 vs. tDiff");// 938
+  DeclareHistogram2D(D_ENE+5,energyBins2,energyBins3,"NaI5 vs. tDiff");
+  DeclareHistogram2D(D_ENE+6,energyBins2,energyBins3,"NaI6 vs. tDiff");
+  DeclareHistogram2D(D_ENE+7,energyBins2,energyBins3,"NaI7 vs. tDiff");// 941
+
+  DeclareHistogram2D(DD_ENE_V_T,energyBins2,energyBins3,"NaI Energy-plugin vs. tDiff");  // 945
+  DeclareHistogram2D(DD_ENE_V_T+1,energyBins2,energyBins3,"DSSD Energy vs. tDiff");  // 946
+  DeclareHistogram1D(D_INT_DSSD_NAI, energyBins3, "Time interval between DSSD-NaI");// 947
+ 
+}
+
+
+//--------------------- some external variables; by Yongchi Xiao; 06/24/2015
+extern bool protonCaught; // by Yongchi XIao; 06/24/2015
+extern double protonTime; // from DSSD4JAEAProcessor.cpp
+extern double protonEnergy; // 06/25/2015
+
+// by Yongchi Xiao; 07/02/2015
+extern int sumSignal; // a value will be assigned whenever a summed signal is found;
+extern double sumSignalTime; // see above;
+extern double sumSignalEnergy; 
+//--------------------------------------------------------------------------
+
+bool NaIProcessor::Process(RawEvent &event)
+{
+  //  cout << "NaI::Processing an event; " << endl; // by Yongchi; 07/05/2015
+
+  using std::cout;
+  using std::endl;
+
+  if (!EventProcessor::Process(event))
+    return false;
+
+  static const vector<ChanEvent*> &naiEvents = sumMap["nai"]->GetList();
+  
+  double sum1=0;
+  double sum2=0;
+  double sumall=0;
+  
+  data.Clear();
+
+  static NaiEvent groupNaiEvents[8]; // by Yongchi Xiao; 06/24/2015	
+
+  for (vector<ChanEvent*>::const_iterator it = naiEvents.begin();
+       it != naiEvents.end(); it++) {
+
+    //    cout << "haha " << endl;
+
+      ChanEvent *chan = *it;
+
+      string subtype   = chan->GetChanID().GetSubtype();
+      int number 	= chan->GetChanID().GetLocation();
+      double calEnergy = chan->GetCalEnergy();
+      double naiTime   = chan->GetTime();
+
+      if(number<=3)
+	{
+	  plot(DD_POSENE,number,calEnergy);
+	  plot(D_ENE+number,calEnergy);
+	  sumall+=calEnergy;
+	} // plot plug-in detectors only; by Yongchi Xiao; 06/28/2015
+
+      if(number<=3)               sum1+=calEnergy; // sum over ch 0-3
+      if(number>=4 && number <=7) sum2+=calEnergy; // sum over ch 4-7
+   
+      if(sum1>0) plot(D_SUM1,sum1);
+      if(sum2>0) plot(D_SUM2,sum2);
+      if(sumall>0) plot(D_SUMALL,sumall);	
+ 
+
+      //--------------------------- by Yongchi Xiao; 06/23/2015 ---------------------------
+      //static vector<NaiEvent> vecNaiEvents; // by Yongchi Xiao; 06/18/2015
+      
+      NaiEvent naiev;
+
+      double interval = -1;
+      double pluginEnergy = 0;
+
+      static int cnt = 0; 
+      int canFill = -1;
+
+      //if(protonCaught == true)
+      if(sumSignal >= 0 ) // if a interesting summed signal is found;
+	{
+	  if( (calEnergy < 5000) && (calEnergy > 1) ) // receive a NaI signal;
+	    {
+	      naiev.energy = calEnergy;
+	      naiev.channel = number;
+	      naiev.time = naiTime;
+
+	      if(cnt == 0)
+		{groupNaiEvents[cnt] = naiev; cnt++;}
+	      else 
+		if(cnt > 0 && 
+		   naiev.time - groupNaiEvents[cnt-1].time < 2 // make sure these two signals correspond to the same event; interval < 20ns
+		   ) 
+		  {groupNaiEvents[cnt] = naiev; cnt++;}
+		else
+		  {canFill = 1; cnt = 0;}
+	    }
+	  	  
+	  if(canFill == 1)
+	    {
+	      for(int i = 0; i < 8; i++)
+		{
+		  if(groupNaiEvents[i].channel < 4)
+		    pluginEnergy = pluginEnergy + groupNaiEvents[i].energy; // sum over the plugin signals;
+		}
+
+	      interval = groupNaiEvents[0].time - sumSignalTime;// cout << interval << endl;
+
+	      if(pluginEnergy > 0)
+		{
+		  plot(DD_ENE_V_T, interval + 100, pluginEnergy); // 945, plugin E. vs. interval;
+		  plot(DD_ENE_V_T+1, interval + 100, sumSignalEnergy); // 946, DSSD E. vs. time interval 
+		}
+	      else // if no plugin E.
+		{
+		  plot(D_ENE+groupNaiEvents[0].channel, interval + 100, groupNaiEvents[0].energy); // 938 to 941, depending on channel #; barrel detectors only;
+		  plot(DD_ENE_V_T+1, interval + 100, sumSignalEnergy); // 946, DSSD E. vs. time interval
+		}
+
+	      plot(D_INT_DSSD_NAI, interval + 100); // 947, time interval
+
+	      sumSignal = -1;
+	      sumSignalTime = -1;
+	      sumSignalEnergy = -1;
+	    }
+	}// end of condition: sumSignal >= 0;
+      //-----------------------------------------------------------------------------------
+      
+  }// end of loop for searching naiEvents;
+  
+  //cout << "NaI::processing finished" << endl;  
+
+  EndProcess();
+  return true;
+}
