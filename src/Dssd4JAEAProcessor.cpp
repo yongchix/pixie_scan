@@ -135,16 +135,14 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 
 	// --- by Yongchi Xiao; 04/25/2016 --- //
 	// delay correlations
-	DeclareHistogram2D(9, 3000, 50, "decays-F"); // 709                                                                                                
-	DeclareHistogram2D(10, 3000, 50, "decays-B"); // 710
+	DeclareHistogram2D(9, 4000, 50, "decays-F"); // 709                                                                                                
+	DeclareHistogram2D(10, 4000, 50, "decays-B"); // 710
 	// involving real decays below
-	DeclareHistogram2D(11, 3000, 3000, "correlation matrix-F"); // 711, need further output
+	DeclareHistogram2D(11, 4000, 4000, "correlation matrix-F"); // 711, need further output
 	DeclareHistogram2D(12, 3000, 3000, "correlation matrix-B"); // 712
-	DeclareHistogram2D(13, 3000, 300, "Dt vs. E2"); // 713
 	//  DeclareHistogram2D(13, 3000, 300, "DSSD-EF vs. PIN-EF"); // 713
 	//  DeclareHistogram2D(14, 3000, 300, "DSSD-EF vs. Dt."); // 714
 	DeclareHistogram2D(15, 3000, 6000, "DSSD-EF vs. Dt, 100 us"); // 715
-	DeclareHistogram2D(19, 2000, 2000, "Gamma-gamma coincidence gated on protons"); // 719
 	// --- //
 
   
@@ -583,7 +581,8 @@ bool Dssd4JAEAProcessor::PreProcess(RawEvent &event) {
     return true; 
 }
 
-static PixelEvent chain[2][40][40] = {}; // by Yongchi Xiao; 04/20/2015; 05/11/2015
+static PixelEvent implant[40][40] = {}; // for implants only;
+static PixelEvent decay[3][40][40] = {}; // for decays only;
 
 bool Dssd4JAEAProcessor::Process(RawEvent &event)
 {
@@ -837,61 +836,48 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				bool canFGGillDT = false;
 				bool isDecay = false;
 
-				// --- by Yongchi Xiao; 01/13/2016, for alpha-matrix --- //
+				/* Establish a correlation matrix
+				 * Distinguish implants and decays from all signals
+				 * implants: saved in implant[40][40]
+				 * decays: saved in decay[40][40]
+				 */
 				if( abs((xEnergy - yEnergy)/xEnergy) < 0.035
 					&& xEnergy > 0
 					&& yEnergy > 0
 					) {
 					if( hasMcp && (mwpcTime - time < 5) ){
-						chain[0][x][y].energyF = xEnergy;
-						chain[0][x][y].energyB = yEnergy;
-						chain[0][x][y].time = time;
+						implant[x][y].energyF = xEnergy;
+						implant[x][y].energyB = yEnergy;
+						implant[x][y].time = time;
 					} // an implantation
 					else {
-						if(xEnergy > (30000/4.00)){ // changed by Yongchi Xiao; 11/25/2015
-							// if E > 30MeV, taken as an implantation
-							chain[0][x][y].energyF = xEnergy;
-							chain[0][x][y].energyB = yEnergy;
-							chain[0][x][y].time = time;
+						if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
+							// if E > 25MeV, taken as an implantation
+							implant[x][y].energyF = xEnergy;
+							implant[x][y].energyB = yEnergy;
+							implant[x][y].time = time;
 						}
 						// a possible decay event 
-						// not necessarily gated on 511-pairs
-						else if(xEnergy < 3000 && yEnergy < 3000
-								&& xEnergy > 50 && yEnergy > 50
-								&& ( time != chain[0][x][y+1].time 
-									 && time != chain[0][x][y-1].time 
-									 && time != chain[0][x+1][y].time 
-									 && time != chain[0][x-1][y].time 
-									 && time != chain[0][x+1][y+1].time 
-									 && time != chain[0][x+1][y-1].time 
-									 && time != chain[0][x-1][y+1].time
-									 && time != chain[0][x-1][y-1].time
+						else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
+								&& xEnergy > 50 && yEnergy > 50 // ensure it is not a noise
+								&& ( time != implant[x][y+1].time 
+									 && time != implant[x][y-1].time 
+									 && time != implant[x+1][y].time 
+									 && time != implant[x-1][y].time 
+									 && time != implant[x+1][y+1].time 
+									 && time != implant[x+1][y-1].time 
+									 && time != implant[x-1][y+1].time
+									 && time != implant[x-1][y-1].time
 									 ) // not induced by adjacent ions
 								){isDecay = true;}
 					}
-				} // end-if(general requirement)
+				} // end-if(consistent energies)
 
 				// deal with decay signals
 				if(isDecay) {	  
-					plot(9, xEnergy, x); // 709                                                                                                                                            
+					plot(9, xEnergy, x); // 709                                                                                                                                      
 					plot(10, yEnergy, y); // 710
 					
-					/* gamma-gamma coincidence gated on following protons 
-					 *  
-					 */
-					/*
-					if(naiPair.CheckCorr()) {
-						if( (time - naiPair.GetTime()) > 0
-							&& !hasNaI
-							&& !hasPinBack
-							&& abs(xEnergy - 300) < 200 
-							) {
-							plot(19, naiPair.GetEnergy().first, naiPair.GetEnergy().second); // 719, gamma-gamma coincidence
-						}
-					}
-					naiPair.Clear();
-					*/
-
 					/* CORRELATION BETWEEN 511 keV GAMMA-RAY 
 					 * AND PROTON IN DSSD
 					 */
@@ -900,7 +886,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 							&& !hasNaI
 							&& !hasPinBack
 							&& (time - corrNaiPin.GetTime())*Globals::get()->clockInSeconds() < gammaProtonWin_
-							&& (time - chain[0][x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_ 
+							&& (time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_ 
 							) {
 							plot(15, xEnergy, 0.5*(time - corrNaiPin.GetTime()) ); // 715
 							/* Output info. of correlated events 
@@ -918,54 +904,53 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 					}
 					corrNaiPin.Clear(); 
 										
-					/* CORRELATION MATRIX FOR DSSD 
+					/* CORRELATION MATRIX FOR DECAYS ON DSSD
 					 * 
 					 */
 					// fill decay chains
-					if(chain[1][x][y].time == -1) { // 1st component not found yet                                                                                          
+					if(decay[1][x][y].time == -1) { // 1st component not found yet                                                                                          
 						// taken as the 1st component                                                                                                                        
 						// gate on 511 keV photon for 1st component
 						//						if(has511gamma) {
 						if(1) {
-							chain[1][x][y].energyF = xEnergy;
-							chain[1][x][y].energyB = yEnergy;
-							chain[1][x][y].time = time;
+							decay[1][x][y].energyF = xEnergy;
+							decay[1][x][y].energyB = yEnergy;
+							decay[1][x][y].time = time;
 						}
 					}
 					else{ // if 1st is found                                                                                                       
 						// proper time interval                                                                                                                              
-						if((time - chain[1][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_ 
-						   && time - chain[1][x][y].time > 0 // in case the clock jump backwards;                                                                            
+						if((time - decay[1][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_ 
+						   && time - decay[1][x][y].time > 0 // in case the clock jumps backwards;                                                                            
 						   ) {// if TDiff qualified, taken as the 2nd component
 							// anti-gate on 511 keV for 2nd component
 							//							if(!has511gamma) {
 							if(1) {
-								chain[2][x][y].energyF = xEnergy;
-								chain[2][x][y].energyB = yEnergy;
-								chain[2][x][y].time = time;
+								decay[2][x][y].energyF = xEnergy;
+								decay[2][x][y].energyB = yEnergy;
+								decay[2][x][y].time = time;
 								// plot stuff
-								plot(11, chain[1][x][y].energyF, chain[2][x][y].energyF); // 711
-								plot(12, chain[1][x][y].energyB, chain[2][x][y].energyB); // 712
-								plot(13, chain[2][x][y].energyF, (chain[2][x][y].time - chain[1][x][y].time)*Globals::get()->clockInSeconds()*1000000); // 713
+								plot(11, decay[1][x][y].energyF, decay[2][x][y].energyF); // 711
+								plot(12, decay[1][x][y].energyB, decay[2][x][y].energyB); // 712
 								// scanout
 								/*
 								ofstream outfile;
 								outfile.open("711matrix.scanout2", std::iostream::out | std::iostream::app);
-								outfile << std::setprecision(15) << chain[1][x][y].time << "  " << chain[1][x][y].energyF << "  " 
-										<< std::setprecision(15) << chain[2][x][y].time << "  " << chain[2][x][y].energyF << "  "
+								outfile << std::setprecision(15) << decay[1][x][y].time << "  " << decay[1][x][y].energyF << "  " 
+										<< std::setprecision(15) << decay[2][x][y].time << "  " << decay[2][x][y].energyF << "  "
 										<< x << " " << y << endl;
 								outfile.close();
 								*/
 								// clear decay chains afterwards
-								chain[1][x][y].Clear();
-								chain[2][x][y].Clear();
+								decay[1][x][y].Clear();
+								decay[2][x][y].Clear();
 							}
 						}	    
 						else{ // too long time interval 
-							chain[1][x][y].Clear(); // start a new pair                                                                                                       
-							chain[1][x][y].energyF = xEnergy;
-							chain[1][x][y].energyB = yEnergy;
-							chain[1][x][y].time = time;
+							decay[1][x][y].Clear(); // start a new pair                                                                                                       
+							decay[1][x][y].energyF = xEnergy;
+							decay[1][x][y].energyB = yEnergy;
+							decay[1][x][y].time = time;
 						}
 					}
 				}// endif(isDecay)
