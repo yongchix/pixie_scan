@@ -3,6 +3,7 @@
  * The DSSD processor handles detectors of type dssd_front and dssd_back and
  *   determines whether the events are implants or decays and informs the
  *   correlator accordingly
+ * by Yongchi Xiao, 08/28/2016
  */
 
 #include <algorithm>
