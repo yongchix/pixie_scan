@@ -3,7 +3,7 @@
  * The DSSD processor handles detectors of type dssd_front and dssd_back and
  *   determines whether the events are implants or decays and informs the
  *   correlator accordingly
- * by Yongchi Xiao, 08/28/2016
+ * 
  */
 
 #include <algorithm>
@@ -884,11 +884,15 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 					if(corrNaiPin.CheckCorr()) {
 						if (time - corrNaiPin.GetTime() > 0
 							&& !hasNaI
+							// anti-gate on front/back PIN
 							&& !hasPinBack
-							&& (time - corrNaiPin.GetTime())*Globals::get()->clockInSeconds() < gammaProtonWin_
-							&& (time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_ 
+							&& !hasPinFront
+							// timing gate on signals
+							&& (corrNaiPin.GetTime() - implant[x][y])*Globals::get()->clockInSeconds() > 0 // triggers should follow implants
+							&& (time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_  // implants should be far away
 							) {
 							plot(15, xEnergy, 0.5*(time - corrNaiPin.GetTime()) ); // 715
+
 							/* Output info. of correlated events 
 							 * to txt files
 							 * 07/19/2016
@@ -900,6 +904,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 									<< xEnergy << endl;
 							outfile.close();
 							*/
+
 						}
 					}
 					corrNaiPin.Clear(); 
