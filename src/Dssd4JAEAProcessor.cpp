@@ -142,7 +142,7 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(12, 3000, 3000, "correlation matrix-B"); // 712
 	//  DeclareHistogram2D(13, 3000, 300, "DSSD-EF vs. PIN-EF"); // 713
 	//  DeclareHistogram2D(14, 3000, 300, "DSSD-EF vs. Dt."); // 714
-	DeclareHistogram2D(15, 3000, 6000, "DSSD-EF vs. Dt, 100 us"); // 715
+	DeclareHistogram2D(15, 4000, 1000, "DSSD-EF vs. Dt, 100 us"); // 715
 	// --- //
 
   
@@ -894,23 +894,26 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 							&& (corrNaiPin.GetTime() - implant[x][y].time)*Globals::get()->clockInSeconds() > 0 // triggers should follow implants
 							&& (time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_  // implants should be far away
 							) {
-							plot(15, xEnergy, 0.5*(time - corrNaiPin.GetTime()) ); // 715
+							plot(15, xEnergy, 0.1*(time - corrNaiPin.GetTime()) ); // 715
 
 							/* Output info. of correlated events 
 							 * to txt files
-							 * 07/19/2016
-							 */
-							/*
+0							 */
+							
 							ofstream outfile;
 							outfile.open("NaIcorrProton.scanout", std::iostream::out | std::iostream::app); 
 							outfile << time - corrNaiPin.GetTime() << "  "
 									<< xEnergy << endl;
 							outfile.close();
-							*/
+							
 
 						}
 					}
 					corrNaiPin.Clear(); 
+					/* The action of clearing should be placed here since 
+					 * the appearance of a proton will interrupt the 
+					 * chasing on beta-decay
+					 */
 										
 					/* CORRELATION MATRIX FOR DECAYS ON DSSD
 					 * 
