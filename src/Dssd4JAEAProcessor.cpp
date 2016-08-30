@@ -608,11 +608,14 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 	bool hasFront = false;
 	bool hasBack  = false;
 	bool hasPinBack = false;
+	bool hasPinFront = false;
 	// 08/03/2016
 	bool has511gamma = false;
 
 	if( event.GetSummary("pin:pin_back", true)->GetMult() > 0)
 		hasPinBack = true;
+	if( event.GetSummary("pin:pin_front", true)->GetMult() > 0)
+		hasPinFront = true;
   
 	int mult_pin  = event.GetSummary("pin", true)->GetMult();
 	int mult_mwpc = event.GetSummary("mcp", true)->GetMult();
@@ -888,7 +891,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 							&& !hasPinBack
 							&& !hasPinFront
 							// timing gate on signals
-							&& (corrNaiPin.GetTime() - implant[x][y])*Globals::get()->clockInSeconds() > 0 // triggers should follow implants
+							&& (corrNaiPin.GetTime() - implant[x][y].time)*Globals::get()->clockInSeconds() > 0 // triggers should follow implants
 							&& (time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_  // implants should be far away
 							) {
 							plot(15, xEnergy, 0.5*(time - corrNaiPin.GetTime()) ); // 715
