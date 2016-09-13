@@ -20,7 +20,6 @@ using std::vector;
 using std::cout;
 using std::endl;
 
-CorrFlag naiPair; // 05/20/2016
 CorrFlag corrNaiPin; // 06/17/2016
 
 using namespace dammIds::nai;
@@ -86,8 +85,11 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 		return false;
 	data.Clear();
 	// clear correlation flag
-	naiPair.Clear(); 
-	corrNaiPin.Clear();
+	/* It does not seem to be necessary to reset the start point 
+	 * everytime when a photon is observed. 
+	 */
+	//	naiPair.Clear(); 
+	//	corrNaiPin.Clear();
 	
 	vector<ChanEvent*> naiEvents = event.GetSummary("nai:nai", true)->GetList();
 	vector<ChanEvent*> pinBackEvents, pinFrontEvents;
@@ -176,12 +178,10 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 				it++) {
 				ChanEvent *chan = *it;
 				if( abs(chan->GetCalEnergy() - 10) < 5) {
-				//				if( chan->GetTime() - plugTime > -21 && chan->GetTime() - plugTime < -16) {
-					//				if(true) {
+					corrNaiPin.Clear();
 					corrNaiPin.Mark(plugTime, true, plugEnergySum, chan->GetCalEnergy());
 					plot(7, 200 + chan->GetTime() - plugTime); // 937
 					plot(8, chan->GetCalEnergy()); // 937
-					//					break;
 				}
 			}					 
 		}
@@ -191,12 +191,10 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 				it++) {
 				ChanEvent *chan = *it;
 				if( abs(chan->GetCalEnergy() - 10) < 5) {
-				//				if( chan->GetTime() - plugTime > -21 && chan->GetTime() - plugTime < -16) {
-					//				if(true) {
+					corrNaiPin.Clear();
 					corrNaiPin.Mark(plugTime, true, plugEnergySum, chan->GetCalEnergy());
 					plot(9, 200 + chan->GetTime() - plugTime); // 938
 					plot(10, chan->GetCalEnergy()); // 940
-					//					break;
 				}
 			}
 		}
