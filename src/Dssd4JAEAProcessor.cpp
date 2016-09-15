@@ -139,8 +139,8 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	// involving real decays below
 	DeclareHistogram2D(11, 4000, 4000, "correlation matrix-F"); // 711, need further output
 	DeclareHistogram2D(12, 3000, 3000, "correlation matrix-B"); // 712
-	//  DeclareHistogram2D(13, 3000, 300, "DSSD-EF vs. PIN-EF"); // 713
-	//  DeclareHistogram2D(14, 3000, 300, "DSSD-EF vs. Dt."); // 714
+	DeclareHistogram2D(13, 4000, 300, "Dt imp. vs. deacy, 1us/ch"); // 713
+	DeclareHistogram2D(14, 4000, 300, "Dt imp. vs. decay, 10us/ch"); // 714
 	DeclareHistogram2D(15, 4000, 1000, "DSSD-EF vs. Dt, 100 us"); // 715
 	// --- //
 
@@ -846,43 +846,50 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				 * implants: saved in implant[40][40]
 				 * decays: saved in decay[40][40]
 				 */
-				if( abs((xEnergy - yEnergy)/xEnergy) < 0.035
+				// for test only
+				if( time <=0 ) cout << "minus" << endl;
+
+				if( abs((xEnergy - yEnergy)/xEnergy) < 0.05
 					&& xEnergy > 0
 					&& yEnergy > 0
+					&& time > 0
 					) {
-					if( hasMcp && (mwpcTime - time < 5) ){
-						implant[x][y].energyF = xEnergy;
-						implant[x][y].energyB = yEnergy;
-						implant[x][y].time = time;
-					} // an implantation
-					else {
-						if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
-							// if E > 25MeV, taken as an implantation
+					if( hasMcp )
+						//						&& (mwpcTime - time < 5)) 
+						{
 							implant[x][y].energyF = xEnergy;
 							implant[x][y].energyB = yEnergy;
 							implant[x][y].time = time;
-						}
-						// a possible decay event 
-						else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
-								&& xEnergy > 50 && yEnergy > 50 // ensure it is not a noise
-								&& ( time != implant[x][y+1].time 
-									 && time != implant[x][y-1].time 
-									 && time != implant[x+1][y].time 
-									 && time != implant[x-1][y].time 
-									 && time != implant[x+1][y+1].time 
-									 && time != implant[x+1][y-1].time 
-									 && time != implant[x-1][y+1].time
+						} // an implantation
+						else {
+							if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
+								// if E > 25MeV, taken as an implantation
+								implant[x][y].energyF = xEnergy;
+								implant[x][y].energyB = yEnergy;
+								implant[x][y].time = time;
+							}
+							// a possible decay event 
+							else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
+									&& xEnergy > 50 && yEnergy > 50 // ensure it is not a noise
+								/*
+								  && ( time != implant[x][y+1].time 
+								  && time != implant[x][y-1].time 
+								  && time != implant[x+1][y].time 
+								  && time != implant[x-1][y].time 
+								  && time != implant[x+1][y+1].time 
+								  && time != implant[x+1][y-1].time 
+								  && time != implant[x-1][y+1].time
 									 && time != implant[x-1][y-1].time
 									 ) // not induced by adjacent ions
-								){isDecay = true;}
-					}
+								*/
+									){isDecay = true;}
+						}
 				} // end-if(consistent energies)
 
 				// deal with decay signals
-				if(isDecay) {	  
-					plot(9, xEnergy, x); // 709                                                                                                                                      
+				if(isDecay && implant[x][y].time > 0) {	  
+					plot(9, xEnergy, x); // 709                                                                                                                   
 					plot(10, yEnergy, y); // 710
-					
 					/* CORRELATION BETWEEN 511 keV GAMMA-RAY 
 					 * AND PROTON IN DSSD
 					 */
@@ -897,53 +904,49 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 							&& (time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_  // implants should be far away
 							) {
 							plot(15, xEnergy, 0.1*(time - corrNaiPin.GetTime()) ); // 715
-
-							/* Output info. of correlated events 
-							 * to txt files
-0							 */
-							
+							/*							
 							ofstream outfile;
 							outfile.open("NaIcorrProton.scanout", std::iostream::out | std::iostream::app); 
 							outfile << time - corrNaiPin.GetTime() << "  "
 									<< xEnergy << endl;
 							outfile.close();
 							corrNaiPin.Clear();
+							*/
 						}
 					}
-					//					corrNaiPin.Clear(); 
-					/* The action of clearing should be placed here since 
-					 * the appearance of a proton will interrupt the 
-					 * chasing on beta-decay
-					 */
-										
 					/* CORRELATION MATRIX FOR DECAYS ON DSSD
 					 * 
 					 */
-					// fill decay chains
-					if(decay[1][x][y].time == -1) { // 1st component not found yet                                                                                          
-						// taken as the 1st component                                                                                                                        
-						// gate on 511 keV photon for 1st component
+					if(decay[1][x][y].time == -1) { // 1st component not found yet                                                                                
 						//						if(has511gamma) {
-						if(hasPinFront || hasPinBack) {
+						//						if(hasPinFront || hasPinBack) {
+						if(true) {
 							decay[1][x][y].energyF = xEnergy;
 							decay[1][x][y].energyB = yEnergy;
 							decay[1][x][y].time = time;
+							if((time - implant[x][y].time)/1000. > 1) {
+								plot(13, xEnergy, (time - implant[x][y].time)/100.); // 713
+								plot(14, xEnergy, (time - implant[x][y].time)/1000.); // 714
+							}
 						}
 					}
 					else{ // if 1st is found                                                                                                       
-						// proper time interval                                                                                                                              
 						if((time - decay[1][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_ 
-						   && time - decay[1][x][y].time > 0 // in case the clock jumps backwards;                                                                            
-						   ) {// if TDiff qualified, taken as the 2nd component
-							// anti-gate on 511 keV for 2nd component
+						   && time - decay[1][x][y].time > 0 // in case the clock jumps backwards;                                                                
+						   ) {
 							//							if(!has511gamma) {
-							if( !hasPinFront && !hasPinBack) {
+							//	if( !hasPinFront && !hasPinBack) {
+							if(true) {
 								decay[2][x][y].energyF = xEnergy;
 								decay[2][x][y].energyB = yEnergy;
 								decay[2][x][y].time = time;
 								// plot stuff
 								plot(11, decay[1][x][y].energyF, decay[2][x][y].energyF); // 711
 								plot(12, decay[1][x][y].energyB, decay[2][x][y].energyB); // 712
+								if((time - implant[x][y].time)/1000. > 1) {
+									plot(13, xEnergy, (time - implant[x][y].time)/100.); // 713
+									plot(14, xEnergy, (time - implant[x][y].time)/1000.); // 714 
+								}
 								// scanout
 								/*
 								ofstream outfile;
@@ -959,7 +962,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 							}
 						}	    
 						else{ // too long time interval 
-							decay[1][x][y].Clear(); // start a new pair                                                                                                       
+							decay[1][x][y].Clear(); // start a new pair                                                                                           
 							decay[1][x][y].energyF = xEnergy;
 							decay[1][x][y].energyB = yEnergy;
 							decay[1][x][y].time = time;
@@ -1009,6 +1012,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						//	      calib_trace_energy2F < 300 &&
 						sidesConsist
 						) {
+						/*
 						cout << endl
 							 << "==================== DOUBLE TRACES =========================" << endl;	  
 						
@@ -1016,8 +1020,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						cout << "time stamp: " << xTime << ", " << yTime << endl;
 						//
 
-						stringstream ss;
-						ss << trace_energy1F << " 2F: " <<trace_energy2F << " 1B: " << trace_energy1B << " 2B: " << trace_energy2B << " xpos: " << xPosition << " ypos: " << yPosition << endl;	  
 
 						cout << "-------------CALIBRATED FILTER ENERGY ----------: " << endl;
 
@@ -1035,8 +1037,10 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						cout << "B1: " << trace_energy1B << ", " << "B2: " << trace_energy2B << endl << endl;
 	   
 						cout << "============================================================" << endl << endl << endl;
-
+						*/
 						//---------------------------------------------------------------------	    
+						stringstream ss;
+						ss << trace_energy1F << " 2F: " <<trace_energy2F << " 1B: " << trace_energy1B << " 2B: " << trace_energy2B << " xpos: " << xPosition << " ypos: " << yPosition << endl;	  
 						Notebook::get()->report(ss.str());	    	    	     	    
 						for(vector<int>::iterator it = xTrace.begin();it != xTrace.end();it++){	  // 776 
 							plot(DD_DOUBLETRACE_FRONT_WITHOUT_MWPC,it-xTrace.begin(),traceNum,*it);
