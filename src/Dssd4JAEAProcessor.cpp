@@ -142,6 +142,8 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(13, decayEnergyBins, timeBins, "Dt imp. vs. deacy, 1us/ch"); // 713
 	DeclareHistogram2D(14, decayEnergyBins, timeBins, "Dt imp. vs. decay, 100us/ch"); // 714
 	DeclareHistogram2D(15, 4000, 1000, "DSSD-EF vs. Dt, 100 us"); // 715
+	DeclareHistogram2D(17, energyBins, xBins, "DSSD imp. front"); // 717
+	DeclareHistogram2D(18, energyBins, xBins, "DSSD imp. back"); // 718
 	// --- //
 
   
@@ -584,7 +586,8 @@ bool Dssd4JAEAProcessor::PreProcess(RawEvent &event) {
 }
 
 static PixelEvent implant[40][40] = {}; // for implants only;
-static PixelEvent decay[3][40][40] = {}; // for decays only;
+const int decaySize = 5;
+static PixelEvent decay[decaySize][40][40] = {}; // for decays only;
 
 bool Dssd4JAEAProcessor::Process(RawEvent &event)
 {
@@ -840,6 +843,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			bool sidesConsist = false; // by Yongchi Xiao; 01/05/2016
 			bool canFGGillDT = false;
 			bool isDecay = false;
+			bool isIon = false;
 
 			/* Establish a correlation matrix
 			 * Distinguish implants and decays from all signals
@@ -847,49 +851,63 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			 * decays: saved in decay[40][40]
 			 */
 
-			/*			
-			if( abs((xEnergy - yEnergy)/xEnergy) < 0.1 // require front/back consistancy in energy ~ 10 %
-				&& xEnergy > 100
-				&& yEnergy > 100
-				) {
-			*/
 			if( xEnergy > 100 && yEnergy > 100) { // no requirement on consistant energies
 				if(hasMcp && (time - mwpcTime) < 30) { 
-					implant[x][y].energyF = xEnergy;
-					implant[x][y].energyB = yEnergy;
-					implant[x][y].time = time;
-				} // an implantation
+					isIon = true;
+				}
 				else {
 					if(xEnergy > 6500) { // in consistancy with the "cutoff energy"
-						implant[x][y].energyF = xEnergy;
-						implant[x][y].energyB = yEnergy;
-						implant[x][y].time = time;
+						isIon = true;
 					}
-					else if( xEnergy < (16000./3.96) 
-							 && yEnergy < (16000./3.96) ) {// < 16 MeV
-						/*
-						  && ( time != implant[x][y+1].time 
-						  && time != implant[x][y-1].time 
-						  && time != implant[x+1][y].time 
-						  && time != implant[x-1][y].time 
-						  && time != implant[x+1][y+1].time 
-						  && time != implant[x+1][y-1].time 
-						  && time != implant[x-1][y+1].time
-						  && time != implant[x-1][y-1].time
-						  ) // not induced by adjacent ions
-						*/
+					else if( xEnergy < (16000./3.96) && yEnergy < (16000./3.96) ) {// < 16 MeV
 						isDecay = true;
 					}
 				}
-			} // end-if(consistent energies)
+			} // end-if( xyEnergy lower limit)
 			
-			// deal with decay signals
+			if(isIon) {
+				// plot
+				// 711
+				for(int i = 1; i < decaySize; i++) {
+					if(decay[i][x][y].time != -1 && implant[x][y].time != -1) {
+						// Dt vs. decay energy
+						plot(13, decay[i][x][y].energyF*2, (decay[i][x][y].time - implant[x][y].time)/100.); // 713                                                                                       
+						plot(14, decay[i][x][y].energyF*2, (decay[i][x][y].time - implant[x][y].time)/10000.); // 714
+					}
+					for(int j = 1; j < i; j++) {
+						if(abs(decay[i][x][y].time - decay[i-j][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_)
+							plot(11, decay[i-j][x][y].energyF, decay[i][x][y].energyF); // 711
+					}
+				}
+				// flush
+				for(int i = 1; i < decaySize; i++) {
+					decay[i][x][y].Clear();
+				}
+				// fill in new event
+				implant[x][y].energyF = xEnergy;
+				implant[x][y].energyB = yEnergy;
+				implant[x][y].time = time;
+				plot(17, implant[x][y].energyF/5., x); // 717                                                                                                                                          
+				plot(18, implant[x][y].energyB/5., y); // 718
+			} else if(isDecay) {
+				for(int i = 1; i < decaySize; i++) {
+					if(decay[i][x][y].time == -1) {
+						decay[i][x][y].energyF = xEnergy;
+						decay[i][x][y].energyB = yEnergy;
+						decay[i][x][y].time = time;
+						/*
+						switch(i) { // 711
+						case 2: plot(11, decay[1][x][y].energyF, decay[i][x][y].energyF); break;
+						case 3: plot(11, decay[1][x][y].energyF, decay[i][x][y].energyF); plot(11, decay[2][x][y].energyF, decay[i][x][y].energyF); break;
+						}
+						*/
+						break;
+					}
+				}
+			}
+			
+			// 511 keV gamma-ray matrix
 			if(isDecay && implant[x][y].time > 0) {	  
-				plot(9, xEnergy, x); // 709                                                                                                                   
-				plot(10, yEnergy, y); // 710
-				/* CORRELATION BETWEEN 511 keV GAMMA-RAY 
-				 * AND PROTON IN DSSD
-				 */
 				if(corrNaiPin.CheckCorr()) {
 					if (time - corrNaiPin.GetTime() > 0
 						&& !hasNaI
@@ -909,50 +927,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 													outfile.close();
 						*/
 						corrNaiPin.Clear();
-					}
-				}
-				/* CORRELATION MATRIX FOR DECAYS ON DSSD
-				 */
-				if(decay[1][x][y].time == -1) { // 1st component not found yet                                                                                
-					decay[1][x][y].energyF = xEnergy;
-					decay[1][x][y].energyB = yEnergy;
-					decay[1][x][y].time = time;
-					if((time - implant[x][y].time) > 1000.) {
-						plot(13, xEnergy*2, (time - implant[x][y].time)/100.); // 713
-						plot(14, xEnergy*2, (time - implant[x][y].time)/10000.); // 714
-					}
-				}
-				else{ // if 1st is found                                                                                                       
-					if((time - decay[1][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_ 
-					   && time - decay[1][x][y].time > 0 // in case the clock jumps backwards;                                                                
-					   ) {
-						decay[2][x][y].energyF = xEnergy;
-						decay[2][x][y].energyB = yEnergy;
-						decay[2][x][y].time = time;
-						// plot stuff
-						plot(11, decay[1][x][y].energyF, decay[2][x][y].energyF); // 711
-						plot(12, decay[1][x][y].energyB, decay[2][x][y].energyB); // 712
-						if((time - implant[x][y].time) > 1000.) {
-							plot(13, xEnergy*2, (time - implant[x][y].time)/100.); // 713
-							plot(14, xEnergy*2, (time - implant[x][y].time)/10000.); // 714 
-						}
-						/*
-						  ofstream outfile;
-						  outfile.open("711matrix.scanout2", std::iostream::out | std::iostream::app);
-						  outfile << std::setprecision(15) << decay[1][x][y].time << "  " << decay[1][x][y].energyF << "  " 
-						  << std::setprecision(15) << decay[2][x][y].time << "  " << decay[2][x][y].energyF << "  "
-						  << x << " " << y << endl;
-						  outfile.close();
-						*/
-						// clear decay chains afterwards
-						decay[1][x][y].Clear();
-						decay[2][x][y].Clear();
-					}	    
-					else{ // too long time interval 
-						decay[1][x][y].Clear(); // start a new pair                                                                                           
-						decay[1][x][y].energyF = xEnergy;
-						decay[1][x][y].energyB = yEnergy;
-						decay[1][x][y].time = time;
 					}
 				}
 			}// endif(isDecay)
