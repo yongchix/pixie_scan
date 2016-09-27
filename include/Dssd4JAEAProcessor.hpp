@@ -184,6 +184,8 @@ protected:
     /** Fission Energy cut (in keV) **/
     double fissionEnergyCut_;
 
+	double betaWin_;
+
 	// correlation time window
 	double correlationMatrixWin_;
 	double gammaProtonWin_;
