@@ -46,7 +46,7 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
                                        int numBackStrips,
                                        int numFrontStrips, 
 									   double correlationMatrixWin, 
-									   double gammaProtonWin) :
+									   double betaWin) :
 	EventProcessor(OFFSET, RANGE, "dssd4jaea"),
 
     correlator_(numBackStrips, numFrontStrips)
@@ -58,7 +58,7 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
     lowEnergyCut_ = lowEnergyCut;
     fissionEnergyCut_ = fissionEnergyCut;
 	correlationMatrixWin_ = correlationMatrixWin;
-	gammaProtonWin_ = gammaProtonWin;
+	betaWin_ = betaWin;
 
     name = "dssd";
     associatedTypes.insert("dssd_front_jaea");
@@ -77,19 +77,6 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
        << endl;
     Notebook::get()->report(ss.str());
 }
-
-// read in the name of output file
-// --- by Yongchi Xiao; 01/21/2016 --- //
-// modified @ 02/01/2016
-string fileName = "ap-matrix.txt";
-//string fileName2 = "pileups.txt";
-
-
-// --- //
-
-
-
-
 
 void Dssd4JAEAProcessor::DeclarePlots(void)
 {
@@ -134,16 +121,14 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 
 	// --- by Yongchi Xiao; 04/25/2016 --- //
 	// delay correlations
-	DeclareHistogram2D(9, 4000, 50, "decays-F"); // 709                                                                                                
-	DeclareHistogram2D(10, 4000, 50, "decays-B"); // 710
 	// involving real decays below
-	DeclareHistogram2D(11, 4000, 4000, "correlation matrix-F"); // 711, need further output
-	DeclareHistogram2D(12, 3000, 3000, "correlation matrix-B"); // 712
+	DeclareHistogram2D(9, 4000, 4000, "recoil dependent matrix-F"); // 709
+	DeclareHistogram2D(10, 4000, 4000, "recoil dependent matrix-B"); // 710
+	DeclareHistogram2D(11, 4000, 4000, "independent matrix-F"); // 711, need further output
+	DeclareHistogram2D(12, 4000, 4000, "independent matrix-B"); // 712
 	DeclareHistogram2D(13, decayEnergyBins, timeBins, "Dt imp. vs. deacy, 1us/ch"); // 713
-	DeclareHistogram2D(14, decayEnergyBins, timeBins, "Dt imp. vs. decay, 100us/ch"); // 714
 	DeclareHistogram2D(15, 4000, 1000, "DSSD-EF vs. Dt, 100 us"); // 715
-	DeclareHistogram2D(17, energyBins, xBins, "DSSD imp. front"); // 717
-	DeclareHistogram2D(18, energyBins, xBins, "DSSD imp. back"); // 718
+	DeclareHistogram2D(16, decayEnergyBins, timeBins, "Dt imp. vs. decay, 10ms/ch"); // 716
 	// --- //
 
   
@@ -586,8 +571,10 @@ bool Dssd4JAEAProcessor::PreProcess(RawEvent &event) {
 }
 
 static PixelEvent implant[40][40] = {}; // for implants only;
-const int decaySize = 5;
+const int decaySize = 2;
 static PixelEvent decay[decaySize][40][40] = {}; // for decays only;
+static PixelEvent oldMatrix[2][40][40] = {}; // independent of implantations
+
 
 bool Dssd4JAEAProcessor::Process(RawEvent &event)
 {
@@ -851,12 +838,14 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			 * decays: saved in decay[40][40]
 			 */
 
-			if( xEnergy > 100 && yEnergy > 100) { // no requirement on consistant energies
-				if(hasMcp && (time - mwpcTime) < 30) { 
+			if( xEnergy > 100 && yEnergy > 100
+				&& abs(xEnergy - yEnergy)/yEnergy*100 < 10) {
+				if(hasMcp && (time - mwpcTime) < 30
+				   && xEnergy < highEnergyCut_) { 
 					isIon = true;
 				}
 				else {
-					if(xEnergy > 6500) { // in consistancy with the "cutoff energy"
+					if(xEnergy > 6500 && xEnergy < highEnergyCut_) { // in consistancy with the "cutoff energy"
 						isIon = true;
 					}
 					else if( xEnergy < (16000./3.96) && yEnergy < (16000./3.96) ) {// < 16 MeV
@@ -865,49 +854,106 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				}
 			} // end-if( xyEnergy lower limit)
 			
+			fstream outfile;
 			if(isIon) {
 				// plot
 				// 711
-				for(int i = 1; i < decaySize; i++) {
+				for(int i = 0; i < decaySize; i++) {
 					if(decay[i][x][y].time != -1 && implant[x][y].time != -1) {
 						// Dt vs. decay energy
-						plot(13, decay[i][x][y].energyF*2, (decay[i][x][y].time - implant[x][y].time)/100.); // 713                                                                                       
-						plot(14, decay[i][x][y].energyF*2, (decay[i][x][y].time - implant[x][y].time)/10000.); // 714
+						//						if( (x < 10 || x > 29) && (y < 10 || y > 29)) {
+						if(true) {
+							plot(13, decay[i][x][y].energyF*2, (decay[i][x][y].time - implant[x][y].time)/100.); // 713                           
+							plot(16, decay[i][x][y].energyF*2, (decay[i][x][y].time - implant[x][y].time)/1000000.); // 716
+						}
 					}
-					for(int j = 1; j < i; j++) {
-						if(abs(decay[i][x][y].time - decay[i-j][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_)
+					for(int j = 1; j <= i; j++) {
+						if( decay[i][x][y].time > 0 && decay[i-j][x][y].time > 0
+							&& implant[x][y].time > 0
+							&& abs(decay[i][x][y].time - decay[i-j][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_) {
 							plot(11, decay[i-j][x][y].energyF, decay[i][x][y].energyF); // 711
+							plot(12, decay[i-j][x][y].energyB, decay[i][x][y].energyB); // 712
+							// output
+							outfile.open("indep_matrix.scanout", std::iostream::out | std::iostream::app);
+							outfile << implant[x][y].energyF << " " << std::setprecision(15) << implant[x][y].time;
+							outfile	<< "  " << std::setprecision(5) << decay[i-j][x][y].energyF << " " << std::setprecision(15) << decay[i-j][x][y].time;
+							outfile	<< "  " << std::setprecision(5) << decay[i][x][y].energyF << " " << std::setprecision(15) << decay[i][x][y].time
+									<< "  " << x << "  " << y <<  endl;
+							outfile.close();
+						}
 					}
 				}
 				// flush
-				for(int i = 1; i < decaySize; i++) {
+				for(int i = 0; i < decaySize; i++) {
 					decay[i][x][y].Clear();
 				}
 				// fill in new event
 				implant[x][y].energyF = xEnergy;
 				implant[x][y].energyB = yEnergy;
 				implant[x][y].time = time;
-				plot(17, implant[x][y].energyF/5., x); // 717                                                                                                                                          
-				plot(18, implant[x][y].energyB/5., y); // 718
 			} else if(isDecay) {
-				for(int i = 1; i < decaySize; i++) {
+				// ion dependent matrix
+				for(int i = 0; i < decaySize; i++) {
 					if(decay[i][x][y].time == -1) {
 						decay[i][x][y].energyF = xEnergy;
 						decay[i][x][y].energyB = yEnergy;
 						decay[i][x][y].time = time;
-						/*
-						switch(i) { // 711
-						case 2: plot(11, decay[1][x][y].energyF, decay[i][x][y].energyF); break;
-						case 3: plot(11, decay[1][x][y].energyF, decay[i][x][y].energyF); plot(11, decay[2][x][y].energyF, decay[i][x][y].energyF); break;
+						// search for 511 keV photons
+						if(implant[x][y].time > 0 
+						   && !hasNaI
+						   //						   && (x < 10 || x > 29) && (y < 10 || y > 29)
+						   && !hasPinBack                                                                                                        
+						   && !hasPinFront                                                                                                       
+						   && (corrNaiPin.GetTime() > implant[x][y].time) 
+						   && (time - implant[x][y].time)*Globals::get()->clockInSeconds() > betaWin_ 
+						   ) {
+							plot(15, xEnergy, log((time - corrNaiPin.GetTime())*10)/log(2.718) ); // 715
+							// output
+							outfile.open("NaIcorrProton.scanout", std::iostream::out | std::iostream::app);                                    
+							outfile << time - corrNaiPin.GetTime() << "  "                                                            
+									<< xEnergy << endl;                                                                                   
+							outfile.close();
 						}
-						*/
 						break;
 					}
 				}
+				// ion independent matrix
+				if(oldMatrix[0][x][y].time == -1) {
+					oldMatrix[0][x][y].energyF = xEnergy;
+					oldMatrix[0][x][y].energyB = yEnergy;
+					oldMatrix[0][x][y].time = time;
+				} else {
+					if(time - oldMatrix[0][x][y].time > 0 
+					   && (time - oldMatrix[0][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_ ) {
+						oldMatrix[1][x][y].time = time;
+						oldMatrix[1][x][y].energyF = xEnergy;
+						oldMatrix[1][x][y].energyB = yEnergy;
+						plot(9, oldMatrix[0][x][y].energyF, oldMatrix[1][x][y].energyF); // 709
+						plot(10, oldMatrix[0][x][y].energyB, oldMatrix[1][x][y].energyB); // 710
+						// output
+						outfile.open("dep_matrix.scanout", std::iostream::out | std::iostream::app);
+						outfile << implant[x][y].energyF << " " << std::setprecision(15) << implant[x][y].time;
+						outfile << "  " << std::setprecision(5) << oldMatrix[0][x][y].energyF << " " << std::setprecision(15) << oldMatrix[0][x][y].time;
+						outfile << "  " << std::setprecision(5) << oldMatrix[1][x][y].energyB << " " << std::setprecision(15) << oldMatrix[1][x][y].time
+								<< "  " << x << "  " << y <<  endl;
+						outfile.close();
+						// clear
+						oldMatrix[0][x][y].Clear();
+						oldMatrix[1][x][y].Clear();
+					} else {
+						oldMatrix[0][x][y].energyF = xEnergy;
+						oldMatrix[0][x][y].energyB = yEnergy;
+						oldMatrix[0][x][y].time = time;
+					}
+				}
+					
+				
 			}
-			
+
+			/*			
 			// 511 keV gamma-ray matrix
-			if(isDecay && implant[x][y].time > 0) {	  
+			if(isDecay && implant[x][y].time > 0 && (x < 10 || x > 29) && (y < 10 || y > 29)) {
+			//			if(isDecay && implant[x][y].time > 0) {	  
 				if(corrNaiPin.CheckCorr()) {
 					if (time - corrNaiPin.GetTime() > 0
 						&& !hasNaI
@@ -916,20 +962,21 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						&& !hasPinFront
 						// timing gate on signals
 						&& (corrNaiPin.GetTime() - implant[x][y].time)*Globals::get()->clockInSeconds() > 0 // triggers should follow implants
-						&& (time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_  // implants should be far away
+						&& (time - implant[x][y].time)*Globals::get()->clockInSeconds() > betaWin_  // implants should be far away
 						) {
 						plot(15, xEnergy, 0.1*(time - corrNaiPin.GetTime()) ); // 715
-						/*							
-													ofstream outfile;
-													outfile.open("NaIcorrProton.scanout", std::iostream::out | std::iostream::app); 
-													outfile << time - corrNaiPin.GetTime() << "  "
-													<< xEnergy << endl;
-													outfile.close();
-						*/
+						  
+						ofstream outfile;
+						outfile.open("NaIcorrProton.scanout", std::iostream::out | std::iostream::app); 
+						outfile << time - corrNaiPin.GetTime() << "  "
+								<< xEnergy << endl;
+						outfile.close();
+
 						corrNaiPin.Clear();
 					}
 				}
 			}// endif(isDecay)
+			*/
 
 			// --- by Yongchi Xiao; 01/13/2016, for piled-up traces --- //
 			if(xpulses > 1 && ypulses > 1) {

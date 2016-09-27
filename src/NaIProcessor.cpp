@@ -58,8 +58,6 @@ void NaIProcessor::DeclarePlots(void)
 	//	DeclareHistogram2D(3, 2000, 2000,  "gamma-gamma coincidence"); // 933
 	//  DeclareHistogram1D(D_SUMALL, energyBins2, "Nai sum 0-8");// 933
 	//	DeclareHistogram1D(4, 2000, "plug-gamma-E"); // 934
-	DeclareHistogram1D(5, 2000, "pin-front gated on 511keV gamma"); // 935
-	DeclareHistogram1D(6, 2000, "pin-back gated on 511keV gamma"); // 936
 	DeclareHistogram1D(7, 500, "Dt. Pin-F"); // 937
 	DeclareHistogram1D(8, 500, "Energy Pin-F"); // 938
 	DeclareHistogram1D(9, 500, "Dt. Pin-B"); // 939
@@ -181,10 +179,11 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 					corrNaiPin.Clear();
 					corrNaiPin.Mark(plugTime, true, plugEnergySum, chan->GetCalEnergy());
 					plot(7, 200 + chan->GetTime() - plugTime); // 937
-					plot(8, chan->GetCalEnergy()); // 937
+					plot(8, chan->GetCalEnergy()); // 938
 				}
 			}					 
 		}
+		
 		if(hasPinBack) {
 			for(vector<ChanEvent*>::iterator it = pinBackEvents.begin();
 				it != pinBackEvents.end();
@@ -193,11 +192,12 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 				if( abs(chan->GetCalEnergy() - 10) < 5) {
 					corrNaiPin.Clear();
 					corrNaiPin.Mark(plugTime, true, plugEnergySum, chan->GetCalEnergy());
-					plot(9, 200 + chan->GetTime() - plugTime); // 938
+					plot(9, 200 + chan->GetTime() - plugTime); // 939
 					plot(10, chan->GetCalEnergy()); // 940
 				}
 			}
 		}
+		
 	}
 	
 
