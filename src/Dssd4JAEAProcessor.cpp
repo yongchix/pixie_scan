@@ -79,18 +79,6 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
     Notebook::get()->report(ss.str());
 }
 
-// read in the name of output file
-// --- by Yongchi Xiao; 01/21/2016 --- //
-// modified @ 02/01/2016
-string fileName = "ap-matrix.txt";
-//string fileName2 = "pileups.txt";
-
-
-// --- //
-
-
-
-
 
 void Dssd4JAEAProcessor::DeclarePlots(void)
 {
@@ -142,7 +130,7 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(12, 3000, 3000, "correlation matrix-B"); // 712
 	//  DeclareHistogram2D(13, 3000, 300, "DSSD-EF vs. PIN-EF"); // 713
 	//  DeclareHistogram2D(14, 3000, 300, "DSSD-EF vs. Dt."); // 714
-	DeclareHistogram2D(15, 4000, 1000, "DSSD-EF vs. Dt, 100 us"); // 715
+	DeclareHistogram2D(15, 4000, 30, "DSSD-EF vs. Dt, 100 us"); // 715
 	// --- //
 
   
@@ -583,6 +571,8 @@ bool Dssd4JAEAProcessor::PreProcess(RawEvent &event) {
 
 static PixelEvent implant[40][40] = {}; // for implants only;
 static PixelEvent decay[3][40][40] = {}; // for decays only;
+const int decaySize = 4;
+static PixelEvent proton[decaySize][40][40] = {}; // for beta-decays only;
 
 bool Dssd4JAEAProcessor::Process(RawEvent &event)
 {
@@ -834,221 +824,195 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				plot(DD_DSSDDFRONT_POSENERGY,xEnergy,xPosition);// 702
 				plot(DD_DSSDDBACK_POSENERGY,yEnergy,yPosition);// 703, filled with (x)yEnergy = (*it).(first)second.E; by YX
 			}
-			if(1){   
-				bool sidesConsist = false; // by Yongchi Xiao; 01/05/2016
-				bool canFGGillDT = false;
-				bool isDecay = false;
-
-				/* Establish a correlation matrix
-				 * Distinguish implants and decays from all signals
-				 * implants: saved in implant[40][40]
-				 * decays: saved in decay[40][40]
-				 */
-				if( abs((xEnergy - yEnergy)/xEnergy) < 0.035
-					&& xEnergy > 0
-					&& yEnergy > 0
-					) {
-					if( hasMcp && (mwpcTime - time < 5) ){
+			
+			bool sidesConsist = false; // by Yongchi Xiao; 01/05/2016
+			bool canFGGillDT = false;
+			bool isDecay = false;
+			fstream outfile;
+			
+			/* Establish a correlation matrix
+			 * Distinguish implants and decays from all signals
+			 * implants: saved in implant[40][40]
+			 * decays: saved in decay[40][40]
+			 */
+			if( abs((xEnergy - yEnergy)/xEnergy) < 0.035
+				&& xEnergy > 0
+				&& yEnergy > 0
+				) {
+				if( hasMcp && (mwpcTime - time < 5) ){
+					implant[x][y].energyF = xEnergy;
+					implant[x][y].energyB = yEnergy;
+					implant[x][y].time = time;
+					for(int i = 0; i < decaySize; i++) proton[i][x][y].Clear();
+				} // an implantation
+				else {
+					if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
+						// if E > 25MeV, taken as an implantation
 						implant[x][y].energyF = xEnergy;
 						implant[x][y].energyB = yEnergy;
 						implant[x][y].time = time;
-					} // an implantation
-					else {
-						if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
-							// if E > 25MeV, taken as an implantation
-							implant[x][y].energyF = xEnergy;
-							implant[x][y].energyB = yEnergy;
-							implant[x][y].time = time;
-						}
-						// a possible decay event 
-						else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
-								&& xEnergy > 50 && yEnergy > 50 // ensure it is not a noise
-								&& ( time != implant[x][y+1].time 
-									 && time != implant[x][y-1].time 
-									 && time != implant[x+1][y].time 
-									 && time != implant[x-1][y].time 
-									 && time != implant[x+1][y+1].time 
-									 && time != implant[x+1][y-1].time 
-									 && time != implant[x-1][y+1].time
-									 && time != implant[x-1][y-1].time
-									 ) // not induced by adjacent ions
-								){isDecay = true;}
+						for(int i = 0; i < decaySize; i++) proton[i][x][y].Clear();
 					}
-				} // end-if(consistent energies)
-
-				// deal with decay signals
-				if(isDecay) {	  
-					plot(9, xEnergy, x); // 709                                                                                                                                      
-					plot(10, yEnergy, y); // 710
-					
-					/* CORRELATION BETWEEN 511 keV GAMMA-RAY 
-					 * AND PROTON IN DSSD
-					 */
-					if(corrNaiPin.CheckCorr()) {
-						if (time - corrNaiPin.GetTime() > 0
-							&& !hasNaI
-							// anti-gate on front/back PIN
-							&& !hasPinBack
-							&& !hasPinFront
-							// timing gate on signals
-							&& (corrNaiPin.GetTime() - implant[x][y].time)*Globals::get()->clockInSeconds() > 0 // triggers should follow implants
-							&& (time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_  // implants should be far away
-							) {
-							plot(15, xEnergy, 0.1*(time - corrNaiPin.GetTime()) ); // 715
-
-							/* Output info. of correlated events 
-							 * to txt files
-0							 */
-							
-							ofstream outfile;
-							outfile.open("NaIcorrProton.scanout", std::iostream::out | std::iostream::app); 
-							outfile << time - corrNaiPin.GetTime() << "  "
-									<< xEnergy << endl;
-							outfile.close();
-							
-
-						}
-					}
-					corrNaiPin.Clear(); 
-					/* The action of clearing should be placed here since 
-					 * the appearance of a proton will interrupt the 
-					 * chasing on beta-decay
-					 */
-										
-					/* CORRELATION MATRIX FOR DECAYS ON DSSD
-					 * 
-					 */
-					// fill decay chains
-					if(decay[1][x][y].time == -1) { // 1st component not found yet                                                                                          
-						// taken as the 1st component                                                                                                                        
-						// gate on 511 keV photon for 1st component
-						//						if(has511gamma) {
-						if(1) {
-							decay[1][x][y].energyF = xEnergy;
-							decay[1][x][y].energyB = yEnergy;
-							decay[1][x][y].time = time;
-						}
-					}
-					else{ // if 1st is found                                                                                                       
-						// proper time interval                                                                                                                              
-						if((time - decay[1][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_ 
-						   && time - decay[1][x][y].time > 0 // in case the clock jumps backwards;                                                                            
-						   ) {// if TDiff qualified, taken as the 2nd component
-							// anti-gate on 511 keV for 2nd component
-							//							if(!has511gamma) {
-							if(1) {
-								decay[2][x][y].energyF = xEnergy;
-								decay[2][x][y].energyB = yEnergy;
-								decay[2][x][y].time = time;
-								// plot stuff
-								plot(11, decay[1][x][y].energyF, decay[2][x][y].energyF); // 711
-								plot(12, decay[1][x][y].energyB, decay[2][x][y].energyB); // 712
-								// scanout
-								/*
-								ofstream outfile;
-								outfile.open("711matrix.scanout2", std::iostream::out | std::iostream::app);
-								outfile << std::setprecision(15) << decay[1][x][y].time << "  " << decay[1][x][y].energyF << "  " 
-										<< std::setprecision(15) << decay[2][x][y].time << "  " << decay[2][x][y].energyF << "  "
-										<< x << " " << y << endl;
-								outfile.close();
-								*/
-								// clear decay chains afterwards
-								decay[1][x][y].Clear();
-								decay[2][x][y].Clear();
-							}
-						}	    
-						else{ // too long time interval 
-							decay[1][x][y].Clear(); // start a new pair                                                                                                       
-							decay[1][x][y].energyF = xEnergy;
-							decay[1][x][y].energyB = yEnergy;
-							decay[1][x][y].time = time;
-						}
-					}
-				}// endif(isDecay)
-
-				// --- by Yongchi Xiao; 01/13/2016, for piled-up traces --- //
-				if(xpulses > 1 && ypulses > 1) {
-					if(xTrace.HasValue("filterEnergy") &&  yTrace.HasValue("filterEnergy")) { 
-						trace_energy1F = xTrace.GetValue("filterEnergy");
-						trace_energy1B = yTrace.GetValue("filterEnergy");
-					}
-					if(xTrace.HasValue("filterEnergy2") && yTrace.HasValue("filterEnergy2")) {
-						trace_energy2F = xTrace.GetValue("filterEnergy2");
-						trace_energy2B = yTrace.GetValue("filterEnergy2");
-					}
-					if(xTrace.HasValue("filterEnergyCal") && yTrace.HasValue("filterEnergyCal")) {
-						calib_trace_energy1F = xTrace.GetValue("filterEnergyCal");
-						calib_trace_energy1B = yTrace.GetValue("filterEnergyCal");
-					}
-					if(xTrace.HasValue("filterEnergy2Cal") && yTrace.HasValue("filterEnergy2Cal")) {
-						calib_trace_energy2F = xTrace.GetValue("filterEnergy2Cal");
-						calib_trace_energy2B = yTrace.GetValue("filterEnergy2Cal");
-					}  
-					
-					// --- by Yongchi Xiao; 01/06/2016; get the time stamps of double traces --- //
-					if( xTrace.HasValue("filterTime") && yTrace.HasValue("filterTime") &&
-						xTrace.HasValue("filterTime2") && yTrace.HasValue("filterTime2")
-						) {
-						trace_time1F = xTrace.GetValue("filterTime");
-						trace_time1B = yTrace.GetValue("filterTime");
-						trace_time2F = xTrace.GetValue("filterTime2");
-						trace_time2B = yTrace.GetValue("filterTime2");
-					}
-	
-					// --- by Yongchi Xiao; 02/20/2016; get the traces qualified in E --- //
-					if( abs(calib_trace_energy1F - calib_trace_energy1B) / calib_trace_energy1F < 0.35 &&
-						abs(calib_trace_energy2F - calib_trace_energy2B) / calib_trace_energy2F < 0.35
-						)
-						sidesConsist = true;
-	  
-					if( calib_trace_energy1F > 0 && calib_trace_energy1B > 0 &&
-						calib_trace_energy2F > 0 && calib_trace_energy2B > 0 &&
-						// upper cut
-						//	      calib_trace_energy1F < 300 &&
-						//	      calib_trace_energy2F < 300 &&
-						sidesConsist
-						) {
-						cout << endl
-							 << "==================== DOUBLE TRACES =========================" << endl;	  
-						
-						// by Yongchi Xiao; 03/06/2016
-						cout << "time stamp: " << xTime << ", " << yTime << endl;
-						//
-
-						stringstream ss;
-						ss << trace_energy1F << " 2F: " <<trace_energy2F << " 1B: " << trace_energy1B << " 2B: " << trace_energy2B << " xpos: " << xPosition << " ypos: " << yPosition << endl;	  
-
-						cout << "-------------CALIBRATED FILTER ENERGY ----------: " << endl;
-
-						cout << "F1: " << calib_trace_energy1F << ", " << "F2: " << calib_trace_energy2F << endl;    
-						cout << "B1: " << calib_trace_energy1B << ", " << "B2: " << calib_trace_energy2B << endl;
-
-						cout << " front ratio(F1/F2): " << calib_trace_energy1F/calib_trace_energy2F << endl;
-						cout << " back ratio(B1/B2): " << calib_trace_energy1B/calib_trace_energy2B << endl << endl;
-
-						cout << "front position: " << xPosition << endl;
-						cout << "back position: " << yPosition << endl << endl;
-
-						cout << "-----------UNCALIB FILTER ENERGY-------------" << endl;
-						cout << "F1: " << trace_energy1F << ", " << "F2: " << trace_energy2F << endl;    
-						cout << "B1: " << trace_energy1B << ", " << "B2: " << trace_energy2B << endl << endl;
-	   
-						cout << "============================================================" << endl << endl << endl;
-
-						//---------------------------------------------------------------------	    
-						Notebook::get()->report(ss.str());	    	    	     	    
-						for(vector<int>::iterator it = xTrace.begin();it != xTrace.end();it++){	  // 776 
-							plot(DD_DOUBLETRACE_FRONT_WITHOUT_MWPC,it-xTrace.begin(),traceNum,*it);
-						}
-						for(vector<int>::iterator it = yTrace.begin();it != yTrace.end();it++){	   
-							plot(DD_DOUBLETRACE_BACK_WITHOUT_MWPC,it-yTrace.begin(),traceNum,*it); // 777
-						}
-						traceNum++;	
-						
-					} // endif(canFillDT)	
-					// --- END OF HANDLING PILED-UP TRACES --- //
+					// a possible decay event 
+					else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
+							&& xEnergy > 50 && yEnergy > 50
+							&& ( time != implant[x][y+1].time 
+								 && time != implant[x][y-1].time 
+								 && time != implant[x+1][y].time 
+								 && time != implant[x-1][y].time 
+								 && time != implant[x+1][y+1].time 
+								 && time != implant[x+1][y-1].time 
+								 && time != implant[x-1][y+1].time
+								 && time != implant[x-1][y-1].time
+								 )
+						){isDecay = true;}
 				}
+			} // end-if(consistent energies)
+			
+			// deal with decay signals
+			if(isDecay) {	  
+				plot(9, xEnergy, x); // 709   
+				plot(10, yEnergy, y); // 710
+				// proton matrix
+				for(int i = 0; i < decaySize; i++) {
+					if(proton[i][x][y].time == -1) {
+						proton[i][x][y].time = time;
+						proton[i][x][y].energyF = xEnergy;
+						proton[i][x][y].energyB = yEnergy;
+						if(i == 0) {
+							// ion-decay correlation
+							plot(9, xEnergy, (proton[0][x][y].time - implant[x][y].time)/100.); // 709, compared to 753
+							plot(10, xEnergy, (proton[0][x][y].time - implant[x][y].time)/1000000.); // 710, compared to 756
+							// search for beta-decay
+							if (corrNaiPin.CheckCorr()
+								&& time - corrNaiPin.GetTime() > 0
+								&& !hasNaI
+								&& !hasPinBack
+								&& !hasPinFront
+								&& (corrNaiPin.GetTime() - implant[x][y].time)*Globals::get()->clockInSeconds() > 0 // triggers should follow implants
+								&& (proton[0][x][y].time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_  // implants should be far away
+								) {
+								outfile.open("NaIcorrProton.scanout", std::iostream::out | std::iostream::app); 
+								outfile << proton[0][x][y].time - corrNaiPin.GetTime() << "  "
+										<< xEnergy << endl;
+								outfile.close();
+							}
+						}
+					}
+				}
+				// decay matrix
+				if(decay[1][x][y].time == -1) { // 1st component not found yet                                                                                    
+					decay[1][x][y].energyF = xEnergy;
+					decay[1][x][y].energyB = yEnergy;
+					decay[1][x][y].time = time;
+				}
+				else{ // if 1st is found                                                                                                       
+					if((time - decay[1][x][y].time)*Globals::get()->clockInSeconds() < correlationMatrixWin_ 
+					   && time - decay[1][x][y].time > 0
+					   ) {
+						decay[2][x][y].energyF = xEnergy;
+						decay[2][x][y].energyB = yEnergy;
+						decay[2][x][y].time = time;
+						// plot stuff
+						plot(11, decay[1][x][y].energyF, decay[2][x][y].energyF); // 711
+						plot(12, decay[1][x][y].energyB, decay[2][x][y].energyB); // 712
+						outfile.open("711matrix.scanout", std::iostream::out | std::iostream::app);
+						outfile << std::setprecision(15) << implant[x][y].time << "  " << implant[x][y].energyF << "  "
+								<< std::setprecision(15) << decay[1][x][y].time << "  " << decay[1][x][y].energyF << "  " 
+								<< std::setprecision(15) << decay[2][x][y].time << "  " << decay[2][x][y].energyF << "  "
+								<< x << " " << y << endl;
+						outfile.close();
+						// clear decay chains afterwards
+						decay[1][x][y].Clear();
+						decay[2][x][y].Clear();
+					}	    
+					else{ // too long time interval 
+						decay[1][x][y].Clear(); // start a new pair                                                                                          
+						decay[1][x][y].energyF = xEnergy;
+						decay[1][x][y].energyB = yEnergy;
+						decay[1][x][y].time = time;
+					}
+				}
+			}// endif(isDecay)
+			// beta-decay
+			if(proton[0][x][y].time > 0 && implant[x][y].time > 0) {
 			}
+			
+			// --- by Yongchi Xiao; 01/13/2016, for piled-up traces --- //
+			if(xpulses > 1 && ypulses > 1) {
+				if(xTrace.HasValue("filterEnergy") &&  yTrace.HasValue("filterEnergy")) { 
+					trace_energy1F = xTrace.GetValue("filterEnergy");
+					trace_energy1B = yTrace.GetValue("filterEnergy");
+				}
+				if(xTrace.HasValue("filterEnergy2") && yTrace.HasValue("filterEnergy2")) {
+					trace_energy2F = xTrace.GetValue("filterEnergy2");
+					trace_energy2B = yTrace.GetValue("filterEnergy2");
+				}
+				if(xTrace.HasValue("filterEnergyCal") && yTrace.HasValue("filterEnergyCal")) {
+					calib_trace_energy1F = xTrace.GetValue("filterEnergyCal");
+					calib_trace_energy1B = yTrace.GetValue("filterEnergyCal");
+				}
+				if(xTrace.HasValue("filterEnergy2Cal") && yTrace.HasValue("filterEnergy2Cal")) {
+					calib_trace_energy2F = xTrace.GetValue("filterEnergy2Cal");
+					calib_trace_energy2B = yTrace.GetValue("filterEnergy2Cal");
+				}  
+					
+				// --- by Yongchi Xiao; 01/06/2016; get the time stamps of double traces --- //
+				if( xTrace.HasValue("filterTime") && yTrace.HasValue("filterTime") &&
+					xTrace.HasValue("filterTime2") && yTrace.HasValue("filterTime2")
+					) {
+					trace_time1F = xTrace.GetValue("filterTime");
+					trace_time1B = yTrace.GetValue("filterTime");
+					trace_time2F = xTrace.GetValue("filterTime2");
+					trace_time2B = yTrace.GetValue("filterTime2");
+				}
+	
+				// --- by Yongchi Xiao; 02/20/2016; get the traces qualified in E --- //
+				if( abs(calib_trace_energy1F - calib_trace_energy1B) / calib_trace_energy1F < 0.35 &&
+					abs(calib_trace_energy2F - calib_trace_energy2B) / calib_trace_energy2F < 0.35
+					)
+					sidesConsist = true;
+	  
+				if( calib_trace_energy1F > 0 && calib_trace_energy1B > 0 &&
+					calib_trace_energy2F > 0 && calib_trace_energy2B > 0 &&
+					// upper cut
+					//	      calib_trace_energy1F < 300 &&
+					//	      calib_trace_energy2F < 300 &&
+					sidesConsist
+					) {
+					/*
+					  cout << endl
+					  << "==================== DOUBLE TRACES =========================" << endl;	  
+					  // by Yongchi Xiao; 03/06/2016
+					  cout << "time stamp: " << xTime << ", " << yTime << endl;
+					  //
+					  stringstream ss;
+					  ss << trace_energy1F << " 2F: " <<trace_energy2F << " 1B: " << trace_energy1B << " 2B: " << trace_energy2B << " xpos: " << xPosition << " ypos: " << yPosition << endl;	  
+					  cout << "-------------CALIBRATED FILTER ENERGY ----------: " << endl;
+					  cout << "F1: " << calib_trace_energy1F << ", " << "F2: " << calib_trace_energy2F << endl;    
+					  cout << "B1: " << calib_trace_energy1B << ", " << "B2: " << calib_trace_energy2B << endl;
+					  cout << " front ratio(F1/F2): " << calib_trace_energy1F/calib_trace_energy2F << endl;
+					  cout << " back ratio(B1/B2): " << calib_trace_energy1B/calib_trace_energy2B << endl << endl;
+					  cout << "front position: " << xPosition << endl;
+					  cout << "back position: " << yPosition << endl << endl;
+					  cout << "-----------UNCALIB FILTER ENERGY-------------" << endl;
+					  cout << "F1: " << trace_energy1F << ", " << "F2: " << trace_energy2F << endl;    
+					  cout << "B1: " << trace_energy1B << ", " << "B2: " << trace_energy2B << endl << endl;
+					  cout << "============================================================" << endl << endl << endl;
+					  //---------------------------------------------------------------------	    
+					  Notebook::get()->report(ss.str());	    	    	     	    
+					*/
+					for(vector<int>::iterator it = xTrace.begin();it != xTrace.end();it++){	  // 776 
+						plot(DD_DOUBLETRACE_FRONT_WITHOUT_MWPC,it-xTrace.begin(),traceNum,*it);
+					}
+					for(vector<int>::iterator it = yTrace.begin();it != yTrace.end();it++){	   
+						plot(DD_DOUBLETRACE_BACK_WITHOUT_MWPC,it-yTrace.begin(),traceNum,*it); // 777
+					}
+					traceNum++;	
+						
+				} // endif(canFillDT)	
+				// --- END OF HANDLING PILED-UP TRACES --- //
+			}			
       
 
 

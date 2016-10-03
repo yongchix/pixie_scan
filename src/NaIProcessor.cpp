@@ -85,9 +85,6 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 	if (!EventProcessor::PreProcess(event))
 		return false;
 	data.Clear();
-	// clear correlation flag
-	naiPair.Clear(); 
-	corrNaiPin.Clear();
 	
 	vector<ChanEvent*> naiEvents = event.GetSummary("nai:nai", true)->GetList();
 	vector<ChanEvent*> pinBackEvents, pinFrontEvents;
@@ -107,12 +104,10 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 	if( event.GetSummary("pin:pin_back", true)->GetMult() > 0) {
 		hasPinBack = true;
 		pinBackEvents = event.GetSummary("pin:pin_back", true)->GetList();
-		//		pinBackEvents = ( (PINProcessor*)DetectorDriver::get()->GetProcessor("PINProcessor") )->GetBackPinEvents();
 	} 
 	if( event.GetSummary("pin:pin_front", true)->GetMult() > 0) {
 		hasPinFront = true;
 		pinFrontEvents = event.GetSummary("pin:pin_front", true)->GetList();
-		//		pinFrontEvents = ( (PINProcessor*)DetectorDriver::get()->GetProcessor("PINProcessor") )->GetFrontPinEvents();
 	}
 
 	// handle NaI events
@@ -130,15 +125,12 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 				plugEnergySum += calEnergy;
 				plugTime = naiTime;
 				firedCh[number]++;
-			}else{ 
-				//			if(calEnergy < 560 && calEnergy > 450){
-				if(true) {
-					switch(number){
-					case 4: vecNaiCh4.push_back(naiev); break;
-					case 6: vecNaiCh6.push_back(naiev); break;
-					case 5: vecNaiCh5.push_back(naiev); break;
-					case 7: vecNaiCh7.push_back(naiev); break;
-					}
+			} else { 
+				switch(number){
+				case 4: vecNaiCh4.push_back(naiev); break;
+				case 6: vecNaiCh6.push_back(naiev); break;
+				case 5: vecNaiCh5.push_back(naiev); break;
+				case 7: vecNaiCh7.push_back(naiev); break;
 				}
 			}
 			vecNaiEventsAll.push_back(naiev);
@@ -155,21 +147,6 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 	/* Correlation between NaI and PIN-front
 	 */
 	if( abs(plugEnergySum - 505) < 55 ) {
-		/*
-		//		corrNaiPin.Mark(plugTime, true, plugEnergySum, 100); 
-		for (vector<ChanEvent*>::iterator it = pinFrontEvents.begin();
-			 it != pinFrontEvents.end();
-			 it++) {
-			ChanEvent *chan = *it;
-			plot(5, chan->GetCalEnergy()); // 935
-		}
-		for (vector<ChanEvent*>::iterator it = pinBackEvents.begin();
-			 it != pinBackEvents.end();
-			 it++) {
-			ChanEvent *chan = *it;
-			plot(6, chan->GetCalEnergy()); // 936
-		}
-		*/
 		if(hasPinFront) {
 			for(vector<ChanEvent*>::iterator it = pinFrontEvents.begin();
 				it != pinFrontEvents.end();
@@ -177,11 +154,9 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 				ChanEvent *chan = *it;
 				if( abs(chan->GetCalEnergy() - 10) < 5) {
 				//				if( chan->GetTime() - plugTime > -21 && chan->GetTime() - plugTime < -16) {
-					//				if(true) {
 					corrNaiPin.Mark(plugTime, true, plugEnergySum, chan->GetCalEnergy());
 					plot(7, 200 + chan->GetTime() - plugTime); // 937
 					plot(8, chan->GetCalEnergy()); // 937
-					//					break;
 				}
 			}					 
 		}
@@ -192,72 +167,14 @@ bool NaIProcessor::PreProcess(RawEvent &event)
 				ChanEvent *chan = *it;
 				if( abs(chan->GetCalEnergy() - 10) < 5) {
 				//				if( chan->GetTime() - plugTime > -21 && chan->GetTime() - plugTime < -16) {
-					//				if(true) {
 					corrNaiPin.Mark(plugTime, true, plugEnergySum, chan->GetCalEnergy());
 					plot(9, 200 + chan->GetTime() - plugTime); // 938
 					plot(10, chan->GetCalEnergy()); // 940
-					//					break;
 				}
 			}
 		}
 	}
-	
 
-	/*  plug vs. barrel, barrel vs. barrel
-	 */
-
-	/*	// 1st step, plug vs. barrel
-	//	if( abs(plugEnergySum - 505) < 55 ) {
-	if(true) {
-		for(vector<SimpleEvent>::iterator it = vecNaiEventsAll.begin();
-			it != vecNaiEventsAll.end();
-			it++) {
-			if( it->channel > 3 // barrel
-				//				&& it->energy > 450 && it->energy < 560 // qualified E. in barrel
-				&& it->time - plugTime > -16 && it->time - plugTime < 34 // in coincidence
-				) {
-				foundPair = true;
-				naiPair.Mark(it->time, foundPair, plugEnergySum, it->energy); 
-				break;
-			}
-		}
-	}
-	// 2nd step, ch 4 vs. ch 6
-	if(foundPair == false){
-		for(vector<SimpleEvent>::iterator it4 = vecNaiCh4.begin();
-			it4 != vecNaiCh4.end();
-			it4++){
-			for(vector<SimpleEvent>::iterator it6 = vecNaiCh6.begin();
-				it6 != vecNaiCh6.end();
-				it6++){
-				if( abs(it4->time - it6->time) < 200) {
-					foundPair = true; 
-					naiPair.Mark(it4->time, foundPair);
-					plot(15, it4->energy, it4->time - it6->time + 200); // 945
-					break;
-				}
-			}if(foundPair == true) break;
-		}
-	}
-	// 3rd step, ch 5 vs. ch 7
-	if(foundPair == false){
-		for(vector<SimpleEvent>::iterator it5 = vecNaiCh5.begin();
-			it5 != vecNaiCh5.end();
-			it5++){
-			for(vector<SimpleEvent>::iterator it7 = vecNaiCh7.begin();
-				it7 != vecNaiCh7.end();
-				it7++){
-				if(abs(it5->time - it7->time) < 200) {
-					foundPair = true; 
-					naiPair.Mark(it5->time, foundPair);
-					plot(16, it5->energy, it5->time - it7->time + 200);// 946
-					break;
-				}
-			}if(foundPair == true) break;
-		}
-	}
-	*/
-	
 	return true;
 }
 
@@ -269,7 +186,6 @@ bool NaIProcessor::Process(RawEvent &event)
 	if (!EventProcessor::Process(event))
 		return false;
 
-	//static const vector<ChanEvent*> &naiEvents = sumMap["nai"]->GetList();
 	vector<ChanEvent*> naiEvents = event.GetSummary("nai:nai", true)->GetList(); // test    
 	double sum1=0;
 
@@ -280,8 +196,7 @@ bool NaIProcessor::Process(RawEvent &event)
 	SimpleEvent se;
 	for (vector<ChanEvent*>::const_iterator it = naiEvents.begin(); it != naiEvents.end(); it++) 
 		{
-			ChanEvent *chan = *it;
-      
+			ChanEvent *chan = *it;      
 			string subtype   = chan->GetChanID().GetSubtype();
 			int number 	= chan->GetChanID().GetLocation();
 			double calEnergy = chan->GetCalEnergy();
