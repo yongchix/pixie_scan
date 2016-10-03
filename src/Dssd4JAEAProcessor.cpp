@@ -123,8 +123,8 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 
 	// --- by Yongchi Xiao; 04/25/2016 --- //
 	// delay correlations
-	DeclareHistogram2D(9, 4000, 50, "decays-F"); // 709                                                                                                
-	DeclareHistogram2D(10, 4000, 50, "decays-B"); // 710
+	DeclareHistogram2D(9, 4000, 300, "decays-F"); // 709                                                                                                
+	DeclareHistogram2D(10, 4000, 300, "decays-B"); // 710
 	// involving real decays below
 	DeclareHistogram2D(11, 4000, 4000, "correlation matrix-F"); // 711, need further output
 	DeclareHistogram2D(12, 3000, 3000, "correlation matrix-B"); // 712
@@ -871,8 +871,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			
 			// deal with decay signals
 			if(isDecay) {	  
-				plot(9, xEnergy, x); // 709   
-				plot(10, yEnergy, y); // 710
 				// proton matrix
 				for(int i = 0; i < decaySize; i++) {
 					if(proton[i][x][y].time == -1) {
