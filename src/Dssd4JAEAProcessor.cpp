@@ -891,7 +891,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 								&& !hasPinBack
 								&& !hasPinFront
 								&& (corrNaiPin.GetTime() - implant[x][y].time)*Globals::get()->clockInSeconds() > 0 // triggers should follow implants
-								&& (proton[0][x][y].time - implant[x][y].time)*Globals::get()->clockInSeconds() > gammaProtonWin_  // implants should be far away
+								&& (proton[0][x][y].time - implant[x][y].time)*Globals::get()->clockInSeconds() > betaWin_  // implants should be far away
 								) {
 								outfile.open("NaIcorrProton.scanout", std::iostream::out | std::iostream::app); 
 								outfile << proton[0][x][y].time - corrNaiPin.GetTime() << "  "
