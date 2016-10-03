@@ -324,11 +324,11 @@ void DetectorDriver::LoadProcessors(Messenger& m) {
 				correlationMatrixWin = 30e-3;
 				m.warning("Using default correlationMatrixWin = 30e-3", 1);
 			}
-			double gammaProtonWin = 
-				processor.attribute("gammaProtonWin").as_double(-1);
-			if (gammaProtonWin == -1) {
-				gammaProtonWin = 30e-6;
-				m.warning("Using default gammaProtonWin = 30e-6", 1); 
+			double betaWin = 
+				processor.attribute("betaWin").as_double(-1);
+			if (betaWin == -1) {
+				betaWin = 30e-6;
+				m.warning("Using default betaWin = 30e-6", 1); 
 			}
             vecProcess.push_back(new
                     Dssd4JAEAProcessor(front_back_correlation_time,
@@ -340,7 +340,7 @@ void DetectorDriver::LoadProcessors(Messenger& m) {
 									   num_back_strips,
 									   num_front_strips, 
 									   correlationMatrixWin, 
-									   gammaProtonWin));
+									   betaWin));
         }
 	else if (name == "GeProcessor" || name == "Ge4Hen3Processor") {
             double gamma_threshold = 

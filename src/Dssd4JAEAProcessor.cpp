@@ -32,7 +32,6 @@
 #include "Notebook.hpp"
 #include "YXEvent.hpp" // by Yongchi Xiao 10/06/2015
 
-extern CorrFlag naiPair; // defined in nai.cpp, by Yongchi Xiao; 10/08/2015
 extern CorrFlag corrNaiPin; // defined in nai.cpp, by Yongchi Xiao; 06/17/2016
 
 using namespace dammIds::dssd4jaea;
@@ -47,7 +46,7 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
                                        int numBackStrips,
                                        int numFrontStrips, 
 									   double correlationMatrixWin, 
-									   double gammaProtonWin) :
+									   double betaWin) :
 	EventProcessor(OFFSET, RANGE, "dssd4jaea"),
 
     correlator_(numBackStrips, numFrontStrips)
@@ -59,7 +58,7 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
     lowEnergyCut_ = lowEnergyCut;
     fissionEnergyCut_ = fissionEnergyCut;
 	correlationMatrixWin_ = correlationMatrixWin;
-	gammaProtonWin_ = gammaProtonWin;
+	betaWin_ = betaWin;
 
     name = "dssd";
     associatedTypes.insert("dssd_front_jaea");
@@ -162,9 +161,10 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	,
 	"DSSD_VETO Ty,Ex (400ns/ch)(xkeV)");
 	*/
+	/*
     DeclareHistogram2D(DD_ENERGY_DECAY_TIME_GRANX_VETO + 3, decayEnergyBins, timeBins
 	,
-	"DSSD_VETO Ty,Ex (1us/ch)(xkeV)");
+	"DSSD_VETO Ty,Ex (1us/ch)(xkeV)");*/
 	/*
     DeclareHistogram2D(DD_ENERGY_DECAY_TIME_GRANX_VETO + 4, decayEnergyBins, timeBins
 	,
@@ -189,8 +189,10 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
     DeclareHistogram2D(DD_ENERGY_DECAY_TIME_GRANX_NOVETO + 2, decayEnergyBins, timeBins,
 	"DSSD_NOVETO Ty,Ex (400ns/ch)(xkeV)");
 	*/
+	/*
     DeclareHistogram2D(DD_ENERGY_DECAY_TIME_GRANX_NOVETO + 3, decayEnergyBins, timeBins,
 	"DSSD_NOVETO Ty,Ex (1us/ch)(xkeV)");
+	*/
 	/*
     DeclareHistogram2D(DD_ENERGY_DECAY_TIME_GRANX_NOVETO + 4, decayEnergyBins, timeBins,
 	"DSSD_NOVETO Ty,Ex (100us/ch)(xkeV)");
@@ -574,6 +576,7 @@ static PixelEvent decay[3][40][40] = {}; // for decays only;
 const int decaySize = 4;
 static PixelEvent proton[decaySize][40][40] = {}; // for beta-decays only;
 
+
 bool Dssd4JAEAProcessor::Process(RawEvent &event)
 {
 	using namespace dammIds::dssd4jaea;
@@ -581,7 +584,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 	if (!EventProcessor::Process(event))
         return false;
   
-	double cutoffEnergy=6500;
+	double cutoffEnergy = 6500;
 
 	vector<ChanEvent*> pinEvents =     event.GetSummary("pin", true)->GetList();
 	vector<ChanEvent*> naiEvents =     event.GetSummary("nai:nai", true)->GetList();
@@ -954,7 +957,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 					calib_trace_energy2F = xTrace.GetValue("filterEnergy2Cal");
 					calib_trace_energy2B = yTrace.GetValue("filterEnergy2Cal");
 				}  
-					
 				// --- by Yongchi Xiao; 01/06/2016; get the time stamps of double traces --- //
 				if( xTrace.HasValue("filterTime") && yTrace.HasValue("filterTime") &&
 					xTrace.HasValue("filterTime2") && yTrace.HasValue("filterTime2")
@@ -1011,9 +1013,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				} // endif(canFillDT)	
 				// --- END OF HANDLING PILED-UP TRACES --- //
 			}			
-      
-
-
 
 			/* --- jaea correlator --- */
 			// can be temporarily commented out
@@ -1207,7 +1206,7 @@ bool Dssd4JAEAProcessor::pickEventType(JAEAEvent& event) {
      *
      **/
 
-	double cutoffEnergy=6500;
+	double cutoffEnergy = 6500;
   
 	int condition = 0;
 	if (event.get_beam()){ 
