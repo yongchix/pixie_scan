@@ -34,6 +34,8 @@
 
 extern CorrFlag corrNaiPin; // defined in nai.cpp, by Yongchi Xiao; 06/17/2016
 
+fstream outfile;
+
 using namespace dammIds::dssd4jaea;
 using namespace std;
 
@@ -135,8 +137,8 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	// --- //
 	DeclareHistogram2D(19, decayEnergyBins2, timeBins, "decays-F"); // 719                                                                                       
     DeclareHistogram2D(20, decayEnergyBins2, 2048, "decays-B"); // 720
-	DeclareHistogram2D(21, 1024, 512, "DSSD-F vs. PIN-f"); // 721
-  
+	DeclareHistogram2D(21, 1024, 512, "DSSD-f vs. PIN-f"); // 721
+	DeclareHistogram2D(22, 1024, 512, "DSSD-f vs. PIN-f, hasBeta"); // 722
 	// 750-759   
 	/*
     DeclareHistogram2D(DD_ENERGY_DECAY_TIME_GRANX + 0, decayEnergyBins, timeBins,
@@ -577,7 +579,7 @@ bool Dssd4JAEAProcessor::PreProcess(RawEvent &event) {
 
 static PixelEvent implant[40][40] = {}; // for implants only;
 static PixelEvent decay[3][40][40] = {}; // for decays only;
-const int decaySize = 4;
+const int decaySize = 1;
 static PixelEvent proton[decaySize][40][40] = {}; // for beta-decays only;
 
 
@@ -610,11 +612,19 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 	// 08/03/2016
 	bool has511gamma = false;
 
-	if( event.GetSummary("pin:pin_back", true)->GetMult() > 0)
+	/*
+	if(pinBackEvents.size() > 0)
 		hasPinBack = true;
-	if( event.GetSummary("pin:pin_front", true)->GetMult() > 0)
+	if(pinFrontEvents.size() > 0) 
 		hasPinFront = true;
-  
+	if(hasPinFront || hasPinBack) 
+		cout << "PIN front: " << pinFrontEvents.size() 
+			 << " PIN back: " << pinBackEvents.size() << endl;
+	if(xEvents.size() || yEvents.size()) 
+		cout << "xEvents: " << xEvents.size() 
+			 << " yEvents: " << yEvents.size() << endl;
+	*/
+
 	int mult_pin  = event.GetSummary("pin", true)->GetMult();
 	int mult_mwpc = event.GetSummary("mcp", true)->GetMult();
 	int mult_nai  = event.GetSummary("nai", true)->GetMult();
@@ -622,25 +632,13 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 	int mult_dssd_back  = event.GetSummary("dssd_back_jaea",true)->GetMult();
 	int mwpc = event.GetSummary("mcp", true)->GetMult();
 
-	if(pinEvents.size() > 0){ hasPin=true; }
-	if(mult_mwpc > 0)
-		{ 
-			hasMcp=true; 
-			//cout << "hasMcp :: mult_mwpc = " << mult_mwpc << endl; 
-		} // by Yongchi Xiao; 05/22/2015
-	if(mult_nai  > 0) { 
-		hasNaI=true;
-	}
-	if(hasNaI||hasPin){
-		hasVETO=true;
-	}
-	if(mult_dssd_front>0){hasFront=true;}
-	if(mult_dssd_back>0) {hasBack=true;}
+	if(pinEvents.size() > 0)hasPin=true;
+	if(mult_mwpc > 0) 		hasMcp=true; 
+	if(mult_nai  > 0) 		hasNaI=true;
+	if(hasNaI||hasPin)		hasVETO=true;
+	if(mult_dssd_front>0)   hasFront=true;
+	if(mult_dssd_back>0)    hasBack=true;
   
-	if(pinEvents.size()>0 || mult_nai>0){
-		//   cout << " Pin " << pinEvents.size() << " NaI " << mult_nai <<endl;
-	}
-
 	//******Manual switch for tests **************
 	//hasPin = true;
 	//hasMcp  = true;
@@ -662,7 +660,8 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 	double static mwpcTime;
 	int inc=0;
 
-	vector<SimpleEvent> vecPinEventsAll, vecPinF, vecPinB;
+	SimpleEvent pinF, pinB;
+	//	vector<SimpleEvent> vecPinFront, vecPinBack;
 	for (vector<ChanEvent*>::const_iterator it = pinEvents.begin();
 		 it != pinEvents.end(); it++) {
 		ChanEvent *chan = *it;
@@ -671,36 +670,20 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 		int number        = chan->GetChanID().GetLocation();
 		double calEnergy = chan->GetCalEnergy();
 		double pinTime   = chan->GetTime();
-		using std::cout;
-		using std:: endl;
 
-		// --- by Yongchi Xiao; 01//07/2016 --- //
 		SimpleEvent se;
 		se.AssignValue(pinTime, calEnergy, number, subtype);
-		vecPinEventsAll.push_back(se);
-		// 05/09/2016
-		if(number == 0) // back side
-			vecPinB.push_back(se);
-		else if(number > 0) // front side
-			vecPinF.push_back(se);
-    
-		// --- //
-	}
-	for(int i = 0;
-		i < vecPinB.size();
-		i++) {
-		if( abs(vecPinB.at(i).energy - 10) < 5) {
-			hasBeta = true;
+		if(subtype.compare("pin_front") == 0) {
+			pinF = se;
+			hasPinFront = true;
 		}
-	}
-	for(int i = 0;
-		i < vecPinF.size();
-		i++) {
-		if( abs(vecPinF.at(i).energy - 10) < 5) {
-			hasBeta = true;
+		else if(subtype.compare("pin_back") == 0) {
+			pinB = se;
+			hasPinBack = true;
 		}
+		if( abs(calEnergy - 10) < 5) 
+			hasBeta = true;
 	}
-
 
 	vector<SimpleEvent> vecNaiEventsAll;
 	vector<SimpleEvent> vecNaiCh4, vecNaiCh6, vecNaiCh5, vecNaiCh7;
@@ -915,27 +898,22 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						if(hasBeta) {
 							plot(19, xEnergy, (proton[i][x][y].time - implant[x][y].time)/100000.); // 719, compared to 755, 1 ms/ch      
 							plot(20, xEnergy, (proton[i][x][y].time - implant[x][y].time)/1000000.); // 720, compared to 756, 10 ms/ch
-							for(int k = 0; 
-								k < vecPinF.size(); // only correlate with front PIN
-								k++) {
-								plot(21, xEnergy, vecPinF.at(k).energy); // 721
+							if(abs(pinF.time - time) < 300) {
+								plot(21, xEnergy, pinF.energy); // 721
+								outfile.open("escDSSD.scanout", std::iostream::out | std::iostream::app);
+								outfile << std::setprecision(15) << implant[x][y].time << "  "
+										<< std::setprecision(15) << proton[i][x][y].time << "  " 
+										<< proton[i][x][y].time - implant[x][y].time << "  " 
+										<< proton[i][x][y].energyF << "  " << proton[i][x][y].energyB << "  "
+										<< pinF.energy << "  " 
+										<< x << "  " << y << endl;
+								outfile.close();
 							}
+								
 						}
-						if(i == 0) {
-							// search for beta-decay
-							if (corrNaiPin.CheckCorr()
-								&& time - corrNaiPin.GetTime() > 0
-								&& !hasNaI
-								&& !hasPinBack
-								&& !hasPinFront
-								&& (corrNaiPin.GetTime() - implant[x][y].time)*Globals::get()->clockInSeconds() > 0 // triggers should follow implants
-								&& (proton[i][x][y].time - implant[x][y].time)*Globals::get()->clockInSeconds() > betaWin_  // implants should be far away
-								) {
-								plot(15, xEnergy); // 715
-								corrNaiPin.Clear();
-							}
-						}
-						break;
+						// try to plot shared energy between DSSD and PIN-f
+						if(abs(pinF.time - time) < 300)
+							plot(22, xEnergy, pinF.energy); // 722
 					}
 				}
 				// decay matrix independent of ions
@@ -967,40 +945,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				}
 			}// endif(isDecay)
 
-			// plot shared energy between DSSD and PIN-f
-			for(int i = 0; i < vecPinEventsAll.size(); i++){
-				SimpleEvent se;
-				se = vecPinEventsAll.at(i);
-
-				int minTDiff = 1000;
-				double dssdE = -1;
-				int minTDiff2 = 1000;
-				double dssdE2 = -1;
-
-				if(se.channel > 0){ // pin-front                                                                                                                                                
-					for(vector< pair<StripEvent, StripEvent> >::iterator it = xyEventsTMatch_.begin();
-						it != xyEventsTMatch_.end(); ++it){ // compared with paired signals                                                  
-						double xEnergy_ = (*it).first.E;
-						int tdiff_ = se.time - (*it).first.t;
-						if(tdiff_ < minTDiff && tdiff_ > 0){
-							minTDiff = tdiff_;
-							dssdE = xEnergy_;
-						}
-					} if(dssdE > 0) {
-						plot(13, dssdE, se.energy); // 713                                                                           
-					}
-					for(int ix = 0; ix < vecDecays.size(); ix++){ // paired decays only                                                                            
-						double xEnergy_ = vecDecays.at(ix).first.energy;
-						double tdiff_ = se.time - vecDecays.at(ix).first.time;
-						if(tdiff_ < minTDiff2 && tdiff_ > 0){
-							minTDiff2 = tdiff_;
-							dssdE2 = xEnergy_;
-						}
-					} if(dssdE2 > 0) {
-						plot(14, dssdE2, se.energy); // 714                                                                                                                          
-					}
-				}
-			}
 
 			
 			// --- by Yongchi Xiao; 01/13/2016, for piled-up traces --- //
