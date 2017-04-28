@@ -55,9 +55,9 @@ bool PINProcessor::Process(RawEvent &event)
 
 	data.Clear();
 
-	/*
-	for(vector<ChanEvent*>::const_iterator it = pinBackEvents.begin();
-		it != pinBackEvents.end();
+
+	for(vector<ChanEvent*>::const_iterator it = pinEvents.begin();
+		it != pinEvents.end();
 		it++) {
 		ChanEvent *chan = *it;
 		string subtype   = chan->GetChanID().GetSubtype();
@@ -65,10 +65,15 @@ bool PINProcessor::Process(RawEvent &event)
 		double calEnergy = chan->GetCalEnergy();
 		double pinTime   = chan->GetTime(); 
 
-		se.AssignValue(pinTime, calEnergy, number, subtype);
-		vecPINb.push_back(se);
+		//		se.AssignValue(pinTime, calEnergy, number, subtype);
+		//		vecPINb.push_back(se);
+
+		if(subtype.compare("pin_front") == 0)
+			plot(D_ENE, calEnergy); // 951;
+		else if(subtype.compare("pin_back") == 0)
+			plot(D_ENE+1, calEnergy); // 952
 	}
-	*/
+
 	      
 	EndProcess();
 	return true;
