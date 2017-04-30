@@ -40,6 +40,7 @@ void PINProcessor::DeclarePlots(void)
 	DeclareHistogram1D(D_ENE+1,energyBins,"Pin2");
 }
 
+//double betaTime[40][40] = {}; // time diff. container
 
 bool PINProcessor::Process(RawEvent &event)
 {

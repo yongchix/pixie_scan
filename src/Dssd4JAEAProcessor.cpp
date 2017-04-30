@@ -32,10 +32,6 @@
 #include "Notebook.hpp"
 #include "YXEvent.hpp" // by Yongchi Xiao 10/06/2015
 
-extern CorrFlag corrNaiPin; // defined in nai.cpp, by Yongchi Xiao; 06/17/2016
-
-fstream outfile;
-
 using namespace dammIds::dssd4jaea;
 using namespace std;
 
@@ -65,6 +61,8 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
     name = "dssd";
     associatedTypes.insert("dssd_front_jaea");
     associatedTypes.insert("dssd_back_jaea");
+	// add associated type = pin
+	associatedTypes.insert("pin"); 
     numDoubleTraces=0;
     
     stringstream ss;
@@ -140,8 +138,9 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(21, 1024, 512, "DSSD-f vs. PIN-f"); // 721
 	DeclareHistogram2D(22, 1024, 512, "DSSD-f vs. PIN-f, hasBeta"); // 722
 	// --- //
-	DeclareHistogram2D(6, decayEnergyBins2, 32, "E_proton vs. log(dt)-f"); // 706
-	DeclareHistogram2D(7, decayEnergyBins2, 32, "E_proton vs. log(dt)-b"); // 707
+	DeclareHistogram2D(6, decayEnergyBins2, 32, "E_proton vs. log(dt1)"); // 706
+	DeclareHistogram2D(7, decayEnergyBins2, 32, "E_proton vs. log(dt2)"); // 707
+	DeclareHistogram2D(8, 32, 32, "dt1 vs. dt2"); // 708
 
 
 
@@ -587,7 +586,7 @@ static PixelEvent implant[40][40] = {}; // for implants only;
 static PixelEvent decay[3][40][40] = {}; // for decays only;
 const int decaySize = 1;
 static PixelEvent proton[decaySize][40][40] = {}; // for beta-decays only;
-
+static double betaTime[2][40][40] = {}; // time diff. container
 
 bool Dssd4JAEAProcessor::Process(RawEvent &event)
 {
@@ -689,7 +688,19 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 		}
 		if( calEnergy < 15 && calEnergy > 3 ) 
 			hasBeta = true;
-	}
+			// fill 40x40 matrix betaTime[40][40]
+		if(hasBeta && hasPinFront && !hasPinBack) {
+			for(int i = 0; i < 40; i++) {
+				for(int j = 0; j < 40; j++) {
+					if(implant[i][j].time > 0) {
+						//						betaTime[0][i][j] = pinTime - implant[i][j].time;
+						betaTime[1][i][j] = pinTime;
+					}
+				}
+			}
+		}
+	} // end of processing pin events
+
 
 	vector<SimpleEvent> vecNaiEventsAll;
 	vector<SimpleEvent> vecNaiCh4, vecNaiCh6, vecNaiCh5, vecNaiCh7;
@@ -882,37 +893,35 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			} // end-if(consistent energies)
 			
 			// deal with decay signals
-			if(isDecay && hasBeta && implant[x][y].time > 0) {	  // a decay gated on positron with preceding ion
-				// record all decays
-				SimpleEvent xe, ye;
-				xe.AssignValue(time, xEnergy, x, "dssd-front");
-				ye.AssignValue(time, yEnergy, y, "dssd-back");
-				vecDecays.push_back(make_pair(xe, ye));
-				// proton matrix running independently
+			if(isDecay && !hasBeta) { // anti-gated on beta trigger
+				proton[0][x][y].time = time;
 				proton[0][x][y].energyF = xEnergy;
 				proton[0][x][y].energyB = yEnergy;
-				proton[0][x][y].time = time;
-				// go back for correlation to last ion
-				double dt = proton[0][x][y].time - implant[x][y].time;
-				// plot information on correlation
-				if(dt > 0) {
-					if(hasPinFront && !hasPinBack)
-						plot(6, proton[0][x][y].energyF, log(dt/10.)); // 706
-					else if(hasPinBack && !hasPinFront) 
-						plot(7, proton[0][x][y].energyF, log(dt/10.)); // 707
-					// output to text file
-					fstream outfile;
-					outfile.open("Eproton_vs_dt.out", std::iostream::out | std::iostream::app);
-					outfile << x << "  " << y << "  " 
-							<< proton[0][x][y].energyF << "  " 
-							<< dt << "  " 
-							<< (int)(hasPinFront) << "  " << (int)(hasPinBack) << endl;
-					outfile.close();
-					implant[x][y].Clear();
-					proton[0][x][y].Clear();
-				} 
-			}// endif(isDecay)
-
+				// correlate beta-trigger to ion
+				if(implant[x][y].time > 0 && betaTime[1][x][y] > 0) {
+					betaTime[0][x][y] = betaTime[1][x][y] - implant[x][y].time; // dt1
+					if(betaTime[0][x][y] > 0) { // ion-beta correlated
+						double dt2 = proton[0][x][y].time - betaTime[1][x][y];
+						// plot stuff
+						plot(6, proton[0][x][y].energyF, log(betaTime[0][x][y]/10.)); // 706, Eproton vs. dt1
+						plot(7, proton[0][x][y].energyF, log(dt2/10.)); // 707, Eproton vs. dt2
+						plot(8, log(betaTime[0][x][y]/10.), log(dt2/10.));// 708
+						// output text
+						fstream outfile;
+						outfile.open("beta-decay-proton.out", std::iostream::out | std::iostream::app);
+						outfile << x << "  " << y << "  "
+								<< betaTime[0][x][y] << "  " 
+								<< proton[0][x][y].energyF << "  "
+								<< dt2 << endl;
+						outfile.close();
+						// clear
+						implant[x][y].Clear();
+						betaTime[0][x][y] = -1;
+						betaTime[1][x][y] = -1;
+						proton[0][x][y].Clear();
+					}
+				}
+			}
 
 			
 			// --- by Yongchi Xiao; 01/13/2016, for piled-up traces --- //
