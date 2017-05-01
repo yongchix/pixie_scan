@@ -126,23 +126,25 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 
 	// --- by Yongchi Xiao; 04/25/2016 --- //
 	// delay correlations
-	DeclareHistogram2D(9, decayEnergyBins2, timeBins, "decays-F"); // 709                                                                        
-	DeclareHistogram2D(10, decayEnergyBins2, 2048, "decays-B"); // 710
+	//	DeclareHistogram2D(9, decayEnergyBins2, timeBins, "decays-F"); // 709                                                                     
+	//	DeclareHistogram2D(10, decayEnergyBins2, 2048, "decays-B"); // 710
 	// involving real decays below
-	DeclareHistogram2D(11, decayEnergyBins2, decayEnergyBins2, "correlation matrix-F"); // 711, need further output
-	DeclareHistogram2D(12, decayEnergyBins2, decayEnergyBins2, "correlation matrix-B"); // 712
-	DeclareHistogram2D(13, decayEnergyBins3, pinEnergyBins, "Shared Energy, all paired signals"); // 713
-	DeclareHistogram2D(14, decayEnergyBins3, pinEnergyBins, "Shared Energy, all paired decays"); // 714
-	DeclareHistogram1D(15, decayEnergyBins2, "spectrum of gated protons"); // 715
+	//	DeclareHistogram2D(11, decayEnergyBins2, decayEnergyBins2, "correlation matrix-F"); // 711, need further output
+	//	DeclareHistogram2D(12, decayEnergyBins2, decayEnergyBins2, "correlation matrix-B"); // 712
+	//	DeclareHistogram2D(13, decayEnergyBins3, pinEnergyBins, "Shared Energy, all paired signals"); // 713
+	//	DeclareHistogram2D(14, decayEnergyBins3, pinEnergyBins, "Shared Energy, all paired decays"); // 714
+	//	DeclareHistogram1D(15, decayEnergyBins2, "spectrum of gated protons"); // 715
 	// --- //
-	DeclareHistogram2D(19, decayEnergyBins2, timeBins, "decays-F"); // 719                                                                       
-    DeclareHistogram2D(20, decayEnergyBins2, 2048, "decays-B"); // 720
-	DeclareHistogram2D(21, 1024, 512, "DSSD-f vs. PIN-f"); // 721
-	DeclareHistogram2D(22, 1024, 512, "DSSD-f vs. PIN-f, hasBeta"); // 722
+	//	DeclareHistogram2D(19, decayEnergyBins2, timeBins, "decays-F"); // 719                                                                    
+	//    DeclareHistogram2D(20, decayEnergyBins2, 2048, "decays-B"); // 720
+	//	DeclareHistogram2D(21, 1024, 512, "DSSD-f vs. PIN-f"); // 721
+	//	DeclareHistogram2D(22, 1024, 512, "DSSD-f vs. PIN-f, hasBeta"); // 722
 	// --- //
-	DeclareHistogram2D(6, decayEnergyBins2, 32, "E_proton vs. log(dt)-f"); // 706
-	DeclareHistogram2D(7, decayEnergyBins2, 32, "E_proton vs. log(dt)-b"); // 707
-
+	DeclareHistogram2D(6, decayEnergyBins2, 32, "E1 vs. log(dt1)"); // 706               
+    DeclareHistogram2D(7, decayEnergyBins2, 32, "E2 vs. log(dt2)"); // 707                                                                       
+    DeclareHistogram2D(8, decayEnergyBins2, decayEnergyBins2, "E1 vs. E2"); // 708                                                                
+    DeclareHistogram2D(9, 32, 32 ,"log(dt1) vs. log(dt2)"); // 709              
+	
 
 
 	// 750-759   
@@ -585,7 +587,7 @@ bool Dssd4JAEAProcessor::PreProcess(RawEvent &event) {
 
 static PixelEvent implant[40][40] = {}; // for implants only;
 static PixelEvent decay[3][40][40] = {}; // for decays only;
-const int decaySize = 1;
+const int decaySize = 2;
 static PixelEvent proton[decaySize][40][40] = {}; // for beta-decays only;
 
 
@@ -855,13 +857,19 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 					implant[x][y].energyF = xEnergy;
 					implant[x][y].energyB = yEnergy;
 					implant[x][y].time = time;
+					for(int i = 0; i < decaySize; i++) {
+						proton[i][x][y].Clear();
+					}
 				} // an implantation
 				else {
 					if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
 						// if E > 25MeV, taken as an implantation
 						implant[x][y].energyF = xEnergy;
 						implant[x][y].energyB = yEnergy;
-						implant[x][y].time = time;
+						implant[x][y].time = time; 
+						for(int i = 0; i < decaySize; i++) {
+							proton[i][x][y].Clear();
+						}
 					}
 					// a possible decay event 
 					else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
@@ -882,35 +890,51 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			} // end-if(consistent energies)
 			
 			// deal with decay signals
-			if(isDecay && hasBeta && implant[x][y].time > 0) {	  // a decay gated on positron with preceding ion
-				// record all decays
-				SimpleEvent xe, ye;
-				xe.AssignValue(time, xEnergy, x, "dssd-front");
-				ye.AssignValue(time, yEnergy, y, "dssd-back");
-				vecDecays.push_back(make_pair(xe, ye));
-				// proton matrix running independently
-				proton[0][x][y].energyF = xEnergy;
-				proton[0][x][y].energyB = yEnergy;
-				proton[0][x][y].time = time;
-				// go back for correlation to last ion
-				double dt = proton[0][x][y].time - implant[x][y].time;
-				// plot information on correlation
-				if(dt > 0) {
-					if(hasPinFront && !hasPinBack)
-						plot(6, proton[0][x][y].energyF, log(dt/10.)); // 706
-					else if(hasPinBack && !hasPinFront) 
-						plot(7, proton[0][x][y].energyF, log(dt/10.)); // 707
-					// output to text file
-					fstream outfile;
-					outfile.open("Eproton_vs_dt.out", std::iostream::out | std::iostream::app);
-					outfile << x << "  " << y << "  " 
-							<< proton[0][x][y].energyF << "  " 
-							<< dt << "  " 
-							<< (int)(hasPinFront) << "  " << (int)(hasPinBack) << endl;
-					outfile.close();
-					implant[x][y].Clear();
-					proton[0][x][y].Clear();
-				} 
+			if (isDecay && implant[x][y].time > 0) {
+				if ( proton[0][x][y].time < 0 && time - implant[x][y].time > 0) {	  // a decay gated on positron with preceding ion
+					//					if (hasBeta && hasPinFront && !hasPinBack) {
+					if (hasBeta) {
+						// fill first layer
+						proton[0][x][y].energyF = xEnergy;
+						proton[0][x][y].energyB = yEnergy;
+						proton[0][x][y].time = time;
+					} else {
+						// clear
+						implant[x][y].Clear();
+						proton[0][x][y].Clear();
+					}
+				} else if (proton[0][x][y].time > 0 && proton[1][x][y].time < 0) {
+					if (!hasBeta) {
+						proton[1][x][y].energyF = xEnergy;
+						proton[1][x][y].energyB = yEnergy;
+						proton[1][x][y].time = time;
+						// calculate
+						double dt1 = proton[0][x][y].time - implant[x][y].time;
+						double dt2 = proton[1][x][y].time - proton[0][x][y].time;
+						// plot stuff
+						plot(6, proton[0][x][y].energyF, log(dt1)); // 706
+						plot(7, proton[1][x][y].energyF, log(dt2)); // 707
+						plot(8, proton[0][x][y].energyF, proton[1][x][y].energyF); // 708
+						plot(9, log(dt1), log(dt2)); // 709
+						// output
+						fstream outfile;
+						outfile.open("Ealpha.out", std::iostream::out | std::iostream::app);
+						outfile << x << "  " << y << "  "
+								<< dt1 << "  " << proton[0][x][y].energyF << "  " 
+								<< dt2 << "  " << proton[1][x][y].energyF << "  "
+								<< endl;
+						outfile.close();
+						// clear
+						implant[x][y].Clear();
+						proton[0][x][y].Clear();
+						proton[1][x][y].Clear();
+					} else {
+						// clear
+						implant[x][y].Clear();
+						proton[0][x][y].Clear();
+						proton[1][x][y].Clear();
+					}
+				}
 			}// endif(isDecay)
 
 
