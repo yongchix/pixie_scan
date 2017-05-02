@@ -689,14 +689,24 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 		if( calEnergy < 15 && calEnergy > 3 ) 
 			hasBeta = true;
 			// fill 40x40 matrix betaTime[40][40]
-		if(hasBeta && hasPinFront && !hasPinBack) {
-			for(int i = 0; i < 40; i++) {
-				for(int j = 0; j < 40; j++) {
-					if(implant[i][j].time > 0) {
-						//						betaTime[0][i][j] = pinTime - implant[i][j].time;
-						betaTime[1][i][j] = pinTime;
+		if(hasBeta) {
+			if (hasPinFront && !hasPinBack) {
+				for(int i = 0; i < 40; i++) {
+					for(int j = 0; j < 40; j++) {
+						if(implant[i][j].time > 0 && pinTime - implant[i][j].time > 0 // in right order
+						   && betaTime[0][i][j] < 0 // not occupied yet
+						   && !hasFront && !hasBack // anti-gated on DSSD
+						   ) {
+							betaTime[0][i][j] = pinTime - implant[i][j].time;
+							betaTime[1][i][j] = pinTime;
+						} else {
+							// clear
+							implant[i][j].Clear();
+							betaTime[0][i][j] = -1;
+							betaTime[1][i][j] = -1;
+						}
 					}
-				}
+				} // loop over all pixels
 			}
 		}
 	} // end of processing pin events
@@ -865,7 +875,11 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				if( hasMcp && (mwpcTime - time < 5) ){
 					implant[x][y].energyF = xEnergy;
 					implant[x][y].energyB = yEnergy;
-					implant[x][y].time = time;
+					implant[x][y].time = time; 
+					// clear
+					proton[0][x][y].Clear();
+					betaTime[0][x][y] = -1;
+					betaTime[1][x][y] = -1;
 				} // an implantation
 				else {
 					if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
@@ -873,6 +887,10 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						implant[x][y].energyF = xEnergy;
 						implant[x][y].energyB = yEnergy;
 						implant[x][y].time = time;
+						// clear
+						proton[0][x][y].Clear();
+						betaTime[0][x][y] = -1;
+						betaTime[1][x][y] = -1;
 					}
 					// a possible decay event 
 					else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
@@ -886,43 +904,44 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 								 && time != implant[x-1][y+1].time
 								 && time != implant[x-1][y-1].time
 								 )
-						){ 
-						isDecay = true;						
-					}
+						){isDecay = true;}
 				}
 			} // end-if(consistent energies)
 			
 			// deal with decay signals
-			if(isDecay && !hasBeta) { // anti-gated on beta trigger
-				proton[0][x][y].time = time;
-				proton[0][x][y].energyF = xEnergy;
-				proton[0][x][y].energyB = yEnergy;
-				// correlate beta-trigger to ion
-				if(implant[x][y].time > 0 && betaTime[1][x][y] > 0) {
-					betaTime[0][x][y] = betaTime[1][x][y] - implant[x][y].time; // dt1
-					if(betaTime[0][x][y] > 0) { // ion-beta correlated
-						double dt2 = proton[0][x][y].time - betaTime[1][x][y];
-						// plot stuff
-						plot(6, proton[0][x][y].energyF, log(betaTime[0][x][y]/10.)); // 706, Eproton vs. dt1
-						plot(7, proton[0][x][y].energyF, log(dt2/10.)); // 707, Eproton vs. dt2
-						plot(8, log(betaTime[0][x][y]/10.), log(dt2/10.));// 708
-						// output text
-						fstream outfile;
-						outfile.open("beta-decay-proton.out", std::iostream::out | std::iostream::app);
-						outfile << x << "  " << y << "  "
-								<< betaTime[0][x][y] << "  " 
-								<< proton[0][x][y].energyF << "  "
-								<< dt2 << endl;
-						outfile.close();
-						// clear
-						implant[x][y].Clear();
-						betaTime[0][x][y] = -1;
-						betaTime[1][x][y] = -1;
-						proton[0][x][y].Clear();
-					}
+			if(isDecay) {
+				if(!hasBeta && !has511gamma  // anti-gated on beta trigger
+				   && betaTime[0][x][y] > 0 // in right order
+				   ) { // beta correlated to ion
+					proton[0][x][y].energyF = xEnergy;
+					proton[0][x][y].energyB = yEnergy;
+					proton[0][x][y].time = time;
+					double dt1 = betaTime[0][x][y];
+					double dt2 = proton[0][x][y].time - betaTime[1][x][y];
+					// plot stuff
+					plot(6, proton[0][x][y].energyF, log(dt1)); // 706
+					plot(7, proton[0][x][y].energyB, log(dt2)); // 707
+					plot(8, log(dt1), log(dt2)); // 707
+					// output
+					fstream outfile;
+					outfile.open("gs-beta.out", std::iostream::out | std::iostream::app);
+					outfile << x << "  " << y << "  "
+							<< dt1 << "  " << dt2 << "  " 
+							<< proton[0][x][y].energyF << endl;
+					outfile.close();
+					// clear afterwards
+					implant[x][y].Clear();
+					proton[0][x][y].Clear();
+					betaTime[0][x][y] = -1;
+					betaTime[1][x][y] = -1;
+				} else {
+					// clear
+					implant[x][y].Clear();
+					proton[0][x][y].Clear();
+					betaTime[0][x][y] = -1;
+					betaTime[1][x][y] = -1;
 				}
-			}
-
+			} // end-of-if(isDecsy)
 			
 			// --- by Yongchi Xiao; 01/13/2016, for piled-up traces --- //
 			if(xpulses > 1 && ypulses > 1) {
