@@ -891,50 +891,44 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			
 			// deal with decay signals
 			if (isDecay && implant[x][y].time > 0) {
-				if ( proton[0][x][y].time < 0 && time - implant[x][y].time > 0) {	  // a decay gated on positron with preceding ion
-					//					if (hasBeta && hasPinFront && !hasPinBack) {
-					if (hasBeta || has511gamma) {
-						// fill first layer
-						proton[0][x][y].energyF = xEnergy;
-						proton[0][x][y].energyB = yEnergy;
-						proton[0][x][y].time = time;
-					} else {
-						// clear
-						implant[x][y].Clear();
-						proton[0][x][y].Clear();
-					}
-				} else if (proton[0][x][y].time > 0 && proton[1][x][y].time < 0) {
-					if (!hasBeta && !has511gamma) {
-						proton[1][x][y].energyF = xEnergy;
-						proton[1][x][y].energyB = yEnergy;
-						proton[1][x][y].time = time;
-						// calculate
-						double dt1 = proton[0][x][y].time - implant[x][y].time;
-						double dt2 = proton[1][x][y].time - proton[0][x][y].time;
-						// plot stuff
-						plot(6, proton[0][x][y].energyF, log(dt1)); // 706
-						plot(7, proton[1][x][y].energyF, log(dt2)); // 707
-						plot(8, proton[0][x][y].energyF, proton[1][x][y].energyF); // 708
-						plot(9, log(dt1), log(dt2)); // 709
-						// output
-						fstream outfile;
-						outfile.open("Ealpha.out", std::iostream::out | std::iostream::app);
-						outfile << x << "  " << y << "  "
-								<< dt1 << "  " << proton[0][x][y].energyF << "  " 
-								<< dt2 << "  " << proton[1][x][y].energyF << "  "
-								<< endl;
-						outfile.close();
-						// clear
-						implant[x][y].Clear();
-						proton[0][x][y].Clear();
-						proton[1][x][y].Clear();
-					} else {
-						// clear
-						implant[x][y].Clear();
-						proton[0][x][y].Clear();
-						proton[1][x][y].Clear();
-					}
+				if ( proton[0][x][y].time < 0 && time - implant[x][y].time > 0
+					 && (hasBeta || has511gamma) ) {	  // a decay gated on positron with preceding ion
+					// fill first layer
+					proton[0][x][y].energyF = xEnergy;
+					proton[0][x][y].energyB = yEnergy;
+					proton[0][x][y].time = time;
+				} else if (proton[0][x][y].time > 0 && proton[1][x][y].time < 0 
+						   && !hasBeta && !has511gamma) {
+					proton[1][x][y].energyF = xEnergy;
+					proton[1][x][y].energyB = yEnergy;
+					proton[1][x][y].time = time;
+					// calculate
+					double dt1 = proton[0][x][y].time - implant[x][y].time;
+					double dt2 = proton[1][x][y].time - proton[0][x][y].time;
+					// plot stuff
+					plot(6, proton[0][x][y].energyF, log(dt1)); // 706
+					plot(7, proton[1][x][y].energyF, log(dt2)); // 707
+					plot(8, proton[0][x][y].energyF, proton[1][x][y].energyF); // 708
+					plot(9, log(dt1), log(dt2)); // 709
+					// output
+					fstream outfile;
+					outfile.open("Ealpha.out", std::iostream::out | std::iostream::app);
+					outfile << x << "  " << y << "  "
+							<< dt1 << "  " << proton[0][x][y].energyF << "  " 
+							<< dt2 << "  " << proton[1][x][y].energyF << "  "
+							<< endl;
+					outfile.close();
+					// clear
+					implant[x][y].Clear();
+					proton[0][x][y].Clear();
+					proton[1][x][y].Clear();
+				} else {
+					// clear
+					implant[x][y].Clear();
+					proton[0][x][y].Clear();
+					proton[1][x][y].Clear();
 				}
+				
 			}// endif(isDecay)
 
 
