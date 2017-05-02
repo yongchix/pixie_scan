@@ -893,7 +893,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			if (isDecay && implant[x][y].time > 0) {
 				if ( proton[0][x][y].time < 0 && time - implant[x][y].time > 0) {	  // a decay gated on positron with preceding ion
 					//					if (hasBeta && hasPinFront && !hasPinBack) {
-					if (hasBeta) {
+					if (hasBeta || has511gamma) {
 						// fill first layer
 						proton[0][x][y].energyF = xEnergy;
 						proton[0][x][y].energyB = yEnergy;
@@ -904,7 +904,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						proton[0][x][y].Clear();
 					}
 				} else if (proton[0][x][y].time > 0 && proton[1][x][y].time < 0) {
-					if (!hasBeta) {
+					if (!hasBeta && !has511gamma) {
 						proton[1][x][y].energyF = xEnergy;
 						proton[1][x][y].energyB = yEnergy;
 						proton[1][x][y].time = time;
