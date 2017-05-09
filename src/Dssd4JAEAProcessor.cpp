@@ -62,7 +62,9 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
     associatedTypes.insert("dssd_front_jaea");
     associatedTypes.insert("dssd_back_jaea");
 	// add associated type = pin
-	associatedTypes.insert("pin"); 
+	associatedTypes.insert("pin");
+	// add associated type = nai
+	associatedTypes.insert("nai");
     numDoubleTraces=0;
     
     stringstream ss;
@@ -122,21 +124,9 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(DD_DSSDIBACK_POSENERGY, 
 					   energyBins, xBins, "DSSD back pos vs implant energy");
 
-	// --- by Yongchi Xiao; 04/25/2016 --- //
-	// delay correlations
-	DeclareHistogram2D(9, decayEnergyBins2, timeBins, "decays-F"); // 709                                                                        
-	DeclareHistogram2D(10, decayEnergyBins2, 2048, "decays-B"); // 710
-	// involving real decays below
-	DeclareHistogram2D(11, decayEnergyBins2, decayEnergyBins2, "correlation matrix-F"); // 711, need further output
-	DeclareHistogram2D(12, decayEnergyBins2, decayEnergyBins2, "correlation matrix-B"); // 712
-	DeclareHistogram2D(13, decayEnergyBins3, pinEnergyBins, "Shared Energy, all paired signals"); // 713
-	DeclareHistogram2D(14, decayEnergyBins3, pinEnergyBins, "Shared Energy, all paired decays"); // 714
-	DeclareHistogram1D(15, decayEnergyBins2, "spectrum of gated protons"); // 715
 	// --- //
-	DeclareHistogram2D(19, decayEnergyBins2, timeBins, "decays-F"); // 719                                                                       
-    DeclareHistogram2D(20, decayEnergyBins2, 2048, "decays-B"); // 720
-	DeclareHistogram2D(21, 1024, 512, "DSSD-f vs. PIN-f"); // 721
-	DeclareHistogram2D(22, 1024, 512, "DSSD-f vs. PIN-f, hasBeta"); // 722
+	DeclareHistogram1D(9, 1024, "PIN-f gated on 511 gamma"); // 709
+	DeclareHistogram1D(10, 1024, "pin-b gated on 511 gamma"); // 710
 	// --- //
 	DeclareHistogram2D(6, decayEnergyBins2, 32, "E_proton vs. log(dt1)"); // 706
 	DeclareHistogram2D(7, decayEnergyBins2, 32, "E_proton vs. log(dt2)"); // 707
@@ -666,7 +656,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 	int inc=0;
 
 	SimpleEvent pinF, pinB;
-	//	vector<SimpleEvent> vecPinFront, vecPinBack;
+	vector<SimpleEvent> vecPinFront, vecPinBack;
 	for (vector<ChanEvent*>::const_iterator it = pinEvents.begin();
 		 it != pinEvents.end(); it++) {
 		ChanEvent *chan = *it;
@@ -680,10 +670,12 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 		se.AssignValue(pinTime, calEnergy, number, subtype);
 		if(subtype.compare("pin_front") == 0) {
 			pinF = se;
+			vecPinFront.push_back(pinF);
 			hasPinFront = true;
 		}
 		else if(subtype.compare("pin_back") == 0) {
 			pinB = se;
+			vecPinBack.push_back(pinB);
 			hasPinBack = true;
 		}
 		if( calEnergy < 15 && calEnergy > 3 ) 
@@ -754,8 +746,18 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
     }
     plugEnergySum /= numFiredCh;
     plugEnergySum = 1.641*plugEnergySum + 114.920; // my own calibration                                                                                           
-	if( abs(plugEnergySum - 505) < 55) 
+	if( abs(plugEnergySum - 505) < 55) {
 		has511gamma = true; 
+		// correlation between PIN and NaI
+		if(hasPinFront) {
+			for(int i = 0; i < vecPinFront.size(); i++) 
+				plot(9, vecPinFront.at(i).energy); // 709
+		} else if(hasPinBack) {
+			for(int i = 0; i < vecPinBack.size(); i++) 
+				plot(10, vecPinBack.at(i).energy); // 710
+		}
+			
+	}
 	// --- plug signals processed --- //
 
 	for (vector<ChanEvent*>::iterator itm = mwpcEvents.begin();
@@ -923,12 +925,14 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 					plot(7, proton[0][x][y].energyB, log(dt2)); // 707
 					plot(8, log(dt1), log(dt2)); // 707
 					// output
+					/*
 					fstream outfile;
 					outfile.open("gs-beta.out", std::iostream::out | std::iostream::app);
 					outfile << x << "  " << y << "  "
 							<< dt1 << "  " << dt2 << "  " 
 							<< proton[0][x][y].energyF << endl;
 					outfile.close();
+					*/
 					// clear afterwards
 					implant[x][y].Clear();
 					proton[0][x][y].Clear();
