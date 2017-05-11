@@ -124,30 +124,9 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(DD_DSSDIBACK_POSENERGY, 
 					   energyBins, xBins, "DSSD back pos vs implant energy");
 
-	// --- by Yongchi Xiao; 04/25/2016 --- //
-	// delay correlations
-	//	DeclareHistogram2D(9, decayEnergyBins2, timeBins, "decays-F"); // 709                                                                    
-	//	DeclareHistogram2D(10, decayEnergyBins2, 2048, "decays-B"); // 710
-	// involving real decays below
-	/*
-	DeclareHistogram2D(11, decayEnergyBins2, decayEnergyBins2, "correlation matrix-F"); // 711, need further output
-	DeclareHistogram2D(12, decayEnergyBins2, decayEnergyBins2, "correlation matrix-B"); // 712
-	DeclareHistogram2D(13, decayEnergyBins3, pinEnergyBins, "Shared Energy, all paired signals"); // 713
-	DeclareHistogram2D(14, decayEnergyBins3, pinEnergyBins, "Shared Energy, all paired decays"); // 714
-	DeclareHistogram1D(15, decayEnergyBins2, "spectrum of gated protons"); // 715
-	*/
-	// --- //
-	/*
-	DeclareHistogram2D(19, decayEnergyBins2, timeBins, "decays-F"); // 719                                                                       
-    DeclareHistogram2D(20, decayEnergyBins2, 2048, "decays-B"); // 720
-	DeclareHistogram2D(21, 1024, 512, "DSSD-f vs. PIN-f"); // 721
-	DeclareHistogram2D(22, 1024, 512, "DSSD-f vs. PIN-f, hasBeta"); // 722
-	*/
-	// --- //
 	DeclareHistogram2D(6, decayEnergyBins2, 32, "E_proton vs. log(dt)-f"); // 706
 	DeclareHistogram2D(7, decayEnergyBins2, 32, "E_proton vs. log(dt)-b"); // 707
-
-
+	DeclareHistogram2D(8, decayEnergyBins2, 32, "E_proton vs. log(dt) 511"); // 708
 
 	// 750-759   
 	/*
@@ -686,13 +665,13 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 		if(subtype.compare("pin_front") == 0) {
 			pinF = se;
 			hasPinFront = true;
+			if(calEnergy < 10 && calEnergy > 0) hasBeta = true;
 		}
 		else if(subtype.compare("pin_back") == 0) {
 			pinB = se;
 			hasPinBack = true;
+			if(calEnergy < 2 && calEnergy > 0) hasBeta = true;
 		}
-		if( calEnergy < 15 && calEnergy > 3 ) 
-			hasBeta = true;
 	}
 
 	vector<SimpleEvent> vecNaiEventsAll;
@@ -899,13 +878,15 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						plot(6, proton[0][x][y].energyF, log(dt/10.)); // 706
 					else if(hasPinBack && !hasPinFront) 
 						plot(7, proton[0][x][y].energyF, log(dt/10.)); // 707
+					else if(!hasPinFront && !hasPinBack)
+						plot(8, proton[0][x][y].energyF, log(dt/10.)); // 708
 					// output to text file
 					fstream outfile;
 					outfile.open("Eproton_vs_dt.out", std::iostream::out | std::iostream::app);
 					outfile << x << "  " << y << "  " 
 							<< proton[0][x][y].energyF << "  " 
 							<< dt << "  " 
-							<< (int)(hasPinFront) << "  " << (int)(hasPinBack) << endl;
+							<< (int)(hasPinFront) << "  " << (int)(hasPinBack) << "  " << (int)(has511gamma) << endl;
 					outfile.close();
 					implant[x][y].Clear();
 					proton[0][x][y].Clear();
