@@ -61,10 +61,6 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
     name = "dssd";
     associatedTypes.insert("dssd_front_jaea");
     associatedTypes.insert("dssd_back_jaea");
-	// add associated type = pin
-	associatedTypes.insert("pin");
-	// add associated type = nai
-	associatedTypes.insert("nai");
     numDoubleTraces=0;
     
     stringstream ss;
@@ -125,13 +121,10 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 					   energyBins, xBins, "DSSD back pos vs implant energy");
 
 	// --- //
-	DeclareHistogram1D(9, 1024, "PIN-f gated on 511 gamma"); // 709
-	DeclareHistogram1D(10, 1024, "pin-b gated on 511 gamma"); // 710
-	// --- //
-	DeclareHistogram2D(6, decayEnergyBins2, 32, "E_proton vs. log(dt1)"); // 706
-	DeclareHistogram2D(7, decayEnergyBins2, 32, "E_proton vs. log(dt2)"); // 707
-	DeclareHistogram2D(8, 32, 32, "dt1 vs. dt2"); // 708
-
+	DeclareHistogram1D(9, 32, "Dt for ions, center"); // 709
+	DeclareHistogram1D(10, 32, "Dt for ions, corner"); // 710
+	DeclareHistogram1D(11, 32, "Dt for decays, center"); // 711
+	DeclareHistogram1D(12, 32, "Dt for decays, corner"); // 712
 
 
 	// 750-759   
@@ -573,10 +566,8 @@ bool Dssd4JAEAProcessor::PreProcess(RawEvent &event) {
 }
 
 static PixelEvent implant[40][40] = {}; // for implants only;
-static PixelEvent decay[3][40][40] = {}; // for decays only;
 const int decaySize = 1;
 static PixelEvent proton[decaySize][40][40] = {}; // for beta-decays only;
-static double betaTime[2][40][40] = {}; // time diff. container
 
 bool Dssd4JAEAProcessor::Process(RawEvent &event)
 {
@@ -606,19 +597,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 	bool hasBeta = false;
 	// 08/03/2016
 	bool has511gamma = false;
-
-	/*
-	if(pinBackEvents.size() > 0)
-		hasPinBack = true;
-	if(pinFrontEvents.size() > 0) 
-		hasPinFront = true;
-	if(hasPinFront || hasPinBack) 
-		cout << "PIN front: " << pinFrontEvents.size() 
-			 << " PIN back: " << pinBackEvents.size() << endl;
-	if(xEvents.size() || yEvents.size()) 
-		cout << "xEvents: " << xEvents.size() 
-			 << " yEvents: " << yEvents.size() << endl;
-	*/
 
 	int mult_pin  = event.GetSummary("pin", true)->GetMult();
 	int mult_mwpc = event.GetSummary("mcp", true)->GetMult();
@@ -681,26 +659,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 		if( calEnergy < 15 && calEnergy > 3 ) 
 			hasBeta = true;
 			// fill 40x40 matrix betaTime[40][40]
-		if(hasBeta) {
-			if (hasPinFront && !hasPinBack) {
-				for(int i = 0; i < 40; i++) {
-					for(int j = 0; j < 40; j++) {
-						if(implant[i][j].time > 0 && pinTime - implant[i][j].time > 0 // in right order
-						   && betaTime[0][i][j] < 0 // not occupied yet
-						   && !hasFront && !hasBack // anti-gated on DSSD
-						   ) {
-							betaTime[0][i][j] = pinTime - implant[i][j].time;
-							betaTime[1][i][j] = pinTime;
-						} else {
-							// clear
-							implant[i][j].Clear();
-							betaTime[0][i][j] = -1;
-							betaTime[1][i][j] = -1;
-						}
-					}
-				} // loop over all pixels
-			}
-		}
 	} // end of processing pin events
 
 
@@ -875,24 +833,26 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				&& yEnergy > 0
 				) {
 				if( hasMcp && (mwpcTime - time < 5) ){
+					// count rate calculation
+					if(abs(x-20) < 5 && abs(y-20) < 5) { // center ions
+						plot(9, log(time - implant[x][y].time)); // 709
+					} else if(abs(x-35) < 2 && abs(y-35) < 2) { // border ions
+						plot(10, log(time - implant[x][y].time)); // 710
+					}
 					implant[x][y].energyF = xEnergy;
 					implant[x][y].energyB = yEnergy;
 					implant[x][y].time = time; 
-					// clear
-					proton[0][x][y].Clear();
-					betaTime[0][x][y] = -1;
-					betaTime[1][x][y] = -1;
 				} // an implantation
 				else {
-					if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
-						// if E > 25MeV, taken as an implantation
+					if(xEnergy > (25000/3.96)){ // if E > 25MeV, taken as an implantation
+						if(abs(x-20) < 5 && abs(y-20) < 5) { // center ions
+							plot(9, log(time - implant[x][y].time)); // 709
+						} else if(abs(x-35) < 2 && abs(y-35) < 2) { // border ions
+							plot(10, log(time - implant[x][y].time)); // 710
+						}
 						implant[x][y].energyF = xEnergy;
 						implant[x][y].energyB = yEnergy;
 						implant[x][y].time = time;
-						// clear
-						proton[0][x][y].Clear();
-						betaTime[0][x][y] = -1;
-						betaTime[1][x][y] = -1;
 					}
 					// a possible decay event 
 					else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
@@ -912,39 +872,14 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			
 			// deal with decay signals
 			if(isDecay) {
-				if(!hasBeta && !has511gamma  // anti-gated on beta trigger
-				   && betaTime[0][x][y] > 0 // in right order
-				   ) { // beta correlated to ion
-					proton[0][x][y].energyF = xEnergy;
-					proton[0][x][y].energyB = yEnergy;
-					proton[0][x][y].time = time;
-					double dt1 = betaTime[0][x][y];
-					double dt2 = proton[0][x][y].time - betaTime[1][x][y];
-					// plot stuff
-					plot(6, proton[0][x][y].energyF, log(dt1)); // 706
-					plot(7, proton[0][x][y].energyB, log(dt2)); // 707
-					plot(8, log(dt1), log(dt2)); // 707
-					// output
-					/*
-					fstream outfile;
-					outfile.open("gs-beta.out", std::iostream::out | std::iostream::app);
-					outfile << x << "  " << y << "  "
-							<< dt1 << "  " << dt2 << "  " 
-							<< proton[0][x][y].energyF << endl;
-					outfile.close();
-					*/
-					// clear afterwards
-					implant[x][y].Clear();
-					proton[0][x][y].Clear();
-					betaTime[0][x][y] = -1;
-					betaTime[1][x][y] = -1;
-				} else {
-					// clear
-					implant[x][y].Clear();
-					proton[0][x][y].Clear();
-					betaTime[0][x][y] = -1;
-					betaTime[1][x][y] = -1;
+				if(abs(x-20) < 5 && abs(y-20) < 5) { // center ions
+					plot(11, log(time - proton[0][x][y].time)); // 711
+				} else if(abs(x-35) < 2 && abs(y-35) < 2) { // border ions
+					plot(12, log(time - proton[0][x][y].time)); // 712
 				}
+				proton[0][x][y].time = time;
+				proton[0][x][y].energyF = xEnergy;
+				proton[0][x][y].energyB = yEnergy;
 			} // end-of-if(isDecsy)
 			
 			// --- by Yongchi Xiao; 01/13/2016, for piled-up traces --- //
