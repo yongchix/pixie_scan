@@ -131,7 +131,8 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(6, decayEnergyBins2, 32, "E_proton vs. log(dt1)"); // 706
 	DeclareHistogram2D(7, decayEnergyBins2, 32, "E_proton vs. log(dt2)"); // 707
 	DeclareHistogram2D(8, 32, 32, "dt1 vs. dt2"); // 708
-
+	// --- //
+	DeclareHistogram1D(11, 32, "time difference between 511-gamma"); // 711
 
 
 	// 750-759   
@@ -573,7 +574,7 @@ bool Dssd4JAEAProcessor::PreProcess(RawEvent &event) {
 }
 
 static PixelEvent implant[40][40] = {}; // for implants only;
-static PixelEvent decay[3][40][40] = {}; // for decays only;
+static double stamp511gamma = -1;
 const int decaySize = 1;
 static PixelEvent proton[decaySize][40][40] = {}; // for beta-decays only;
 static double betaTime[2][40][40] = {}; // time diff. container
@@ -748,6 +749,13 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
     plugEnergySum = 1.641*plugEnergySum + 114.920; // my own calibration                                                                                           
 	if( abs(plugEnergySum - 505) < 55) {
 		has511gamma = true; 
+		if(stamp511gamma < 0) 
+			stamp511gamma = plugTime; 
+		else {
+			plot(11, log(plugTime - stamp511gamma)); // 711
+			stamp511gamma = plugTime;
+		} 
+			
 		// correlation between PIN and NaI
 		if(hasPinFront) {
 			for(int i = 0; i < vecPinFront.size(); i++) 
