@@ -145,12 +145,12 @@ bool McpProcessor::Process(RawEvent &event)
       
 			double tDiff=  data.time[1] - data.time[0]+20;
       
-			plot(D_POSX, tDiff); //951   
-			plot(D_POSY, Cathode);// 952, Cathode = calEnergy for subtyoe=="ltime"; by YX
+			plot(D_POSX, tDiff); //921   
+			plot(D_POSY, Cathode);// 922, Cathode = calEnergy for subtyoe=="ltime"; by YX
       
 			// old divided value
 			//data.raw[2]=data.raw[2]/5.;
-			plot(DD_POSXY,data.raw[2]/5,Cathode);
+			plot(DD_POSXY,data.raw[2]/5,Cathode); // 923
       
 			//plot(DD_POSXY,data.raw[2]/4,Cathode);
       
