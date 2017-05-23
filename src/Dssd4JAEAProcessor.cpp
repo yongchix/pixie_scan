@@ -125,15 +125,8 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 					   energyBins, xBins, "DSSD back pos vs implant energy");
 
 	// --- //
-	DeclareHistogram1D(9, 1024, "PIN-f gated on 511 gamma"); // 709
-	DeclareHistogram1D(10, 1024, "pin-b gated on 511 gamma"); // 710
-	// --- //
-	DeclareHistogram2D(6, decayEnergyBins2, 32, "E_proton vs. log(dt1)"); // 706
-	DeclareHistogram2D(7, decayEnergyBins2, 32, "E_proton vs. log(dt2)"); // 707
-	DeclareHistogram2D(8, 32, 32, "dt1 vs. dt2"); // 708
-	// --- //
-	DeclareHistogram1D(11, 32, "time difference between 511-gamma"); // 711
-
+	DeclareHistogram1D(11, 1024, "Gamma-ray spectrum"); // 711
+	
 
 	// 750-759   
 	/*
@@ -747,12 +740,13 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
     }
     plugEnergySum /= numFiredCh;
     plugEnergySum = 1.641*plugEnergySum + 114.920; // my own calibration                                                                                           
+	plot(11, plugEnergySum); // 711
+
 	if( abs(plugEnergySum - 505) < 55) {
 		has511gamma = true; 
 		if(stamp511gamma < 0) 
 			stamp511gamma = plugTime; 
 		else {
-			plot(11, log(plugTime - stamp511gamma)); // 711
 			stamp511gamma = plugTime;
 		} 
 			
@@ -920,39 +914,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			
 			// deal with decay signals
 			if(isDecay) {
-				if(!hasBeta && !has511gamma  // anti-gated on beta trigger
-				   && betaTime[0][x][y] > 0 // in right order
-				   ) { // beta correlated to ion
-					proton[0][x][y].energyF = xEnergy;
-					proton[0][x][y].energyB = yEnergy;
-					proton[0][x][y].time = time;
-					double dt1 = betaTime[0][x][y];
-					double dt2 = proton[0][x][y].time - betaTime[1][x][y];
-					// plot stuff
-					plot(6, proton[0][x][y].energyF, log(dt1)); // 706
-					plot(7, proton[0][x][y].energyB, log(dt2)); // 707
-					plot(8, log(dt1), log(dt2)); // 707
-					// output
-					/*
-					fstream outfile;
-					outfile.open("gs-beta.out", std::iostream::out | std::iostream::app);
-					outfile << x << "  " << y << "  "
-							<< dt1 << "  " << dt2 << "  " 
-							<< proton[0][x][y].energyF << endl;
-					outfile.close();
-					*/
-					// clear afterwards
-					implant[x][y].Clear();
-					proton[0][x][y].Clear();
-					betaTime[0][x][y] = -1;
-					betaTime[1][x][y] = -1;
-				} else {
-					// clear
-					implant[x][y].Clear();
-					proton[0][x][y].Clear();
-					betaTime[0][x][y] = -1;
-					betaTime[1][x][y] = -1;
-				}
+				continue;
 			} // end-of-if(isDecsy)
 			
 			// --- by Yongchi Xiao; 01/13/2016, for piled-up traces --- //
