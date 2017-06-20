@@ -62,9 +62,9 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
     associatedTypes.insert("dssd_front_jaea");
     associatedTypes.insert("dssd_back_jaea");
 	// add associated type = pin
-	associatedTypes.insert("pin");
+	//	associatedTypes.insert("pin");
 	// add associated type = nai
-	associatedTypes.insert("nai");
+	//	associatedTypes.insert("nai");
     numDoubleTraces=0;
     
     stringstream ss;
@@ -125,7 +125,16 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 					   energyBins, xBins, "DSSD back pos vs implant energy");
 
 	// --- //
-	DeclareHistogram1D(11, 1024, "Gamma-ray spectrum"); // 711
+	DeclareHistogram2D(11, 4096, 64, "DSSD Ion-Front"); // 711
+	DeclareHistogram2D(12, 4096, 64, "DSSD Ion-Back"); // 712
+	DeclareHistogram2D(13, 4096, 64, "DSSD Decay-Front"); // 713
+	DeclareHistogram2D(14, 4096, 64, "DSSD Decay-Back"); // 714
+	DeclareHistogram2D(15, 4069, 512, "E vs. Dt, 1 us"); // 715
+	DeclareHistogram2D(16, 4069, 512, "E vs. Dt, 10 us"); // 715
+	DeclareHistogram2D(17, 1024, 64, "L.E. Protons-Front"); // 717
+	DeclareHistogram2D(18, 1024, 64, "L.E. Protons-Back"); // 718
+	DeclareHistogram2D(19, 1024, 64, "L.E. Protons-Front, < 20us"); // 719
+	DeclareHistogram2D(20, 1024, 64, "L.E. Protons-Back, < 20us"); // 720
 	
 
 	// 750-759   
@@ -570,7 +579,6 @@ static PixelEvent implant[40][40] = {}; // for implants only;
 static double stamp511gamma = -1;
 const int decaySize = 1;
 static PixelEvent proton[decaySize][40][40] = {}; // for beta-decays only;
-static double betaTime[2][40][40] = {}; // time diff. container
 
 bool Dssd4JAEAProcessor::Process(RawEvent &event)
 {
@@ -675,26 +683,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 		if( calEnergy < 15 && calEnergy > 3 ) 
 			hasBeta = true;
 			// fill 40x40 matrix betaTime[40][40]
-		if(hasBeta) {
-			if (hasPinFront && !hasPinBack) {
-				for(int i = 0; i < 40; i++) {
-					for(int j = 0; j < 40; j++) {
-						if(implant[i][j].time > 0 && pinTime - implant[i][j].time > 0 // in right order
-						   && betaTime[0][i][j] < 0 // not occupied yet
-						   && !hasFront && !hasBack // anti-gated on DSSD
-						   ) {
-							betaTime[0][i][j] = pinTime - implant[i][j].time;
-							betaTime[1][i][j] = pinTime;
-						} else {
-							// clear
-							implant[i][j].Clear();
-							betaTime[0][i][j] = -1;
-							betaTime[1][i][j] = -1;
-						}
-					}
-				} // loop over all pixels
-			}
-		}
 	} // end of processing pin events
 
 
@@ -740,8 +728,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
     }
     plugEnergySum /= numFiredCh;
     plugEnergySum = 1.641*plugEnergySum + 114.920; // my own calibration                                                                                           
-	plot(11, plugEnergySum); // 711
-
 	if( abs(plugEnergySum - 505) < 55) {
 		has511gamma = true; 
 		if(stamp511gamma < 0) 
@@ -879,11 +865,12 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				if( hasMcp && (mwpcTime - time < 5) ){
 					implant[x][y].energyF = xEnergy;
 					implant[x][y].energyB = yEnergy;
-					implant[x][y].time = time; 
+					implant[x][y].time = time;
+					// plot 
+					plot(11, xEnergy/5., x); // 711
+					plot(12, yEnergy/5., y); // 712
 					// clear
 					proton[0][x][y].Clear();
-					betaTime[0][x][y] = -1;
-					betaTime[1][x][y] = -1;
 				} // an implantation
 				else {
 					if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
@@ -891,10 +878,11 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						implant[x][y].energyF = xEnergy;
 						implant[x][y].energyB = yEnergy;
 						implant[x][y].time = time;
+						// plot
+						plot(11, xEnergy, 11); // 711
+						plot(12, yEnergy, 12); // 712
 						// clear
 						proton[0][x][y].Clear();
-						betaTime[0][x][y] = -1;
-						betaTime[1][x][y] = -1;
 					}
 					// a possible decay event 
 					else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
@@ -914,7 +902,21 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			
 			// deal with decay signals
 			if(isDecay) {
-				continue;
+				// plot
+				plot(13, xEnergy, x); // 713
+				plot(14, yEnergy, y); // 714
+				if(implant[x][y].time > 0) { // preceding ion found
+					plot(15, xEnergy, (time - implant[x][y].time)*1e-2); // 715
+					plot(16, yEnergy, (time - implant[x][y].time)*1e-3); // 716
+					plot(17, xEnergy, x); // 717
+					plot(18, yEnergy, y); // 718
+					if((time - implant[x][y].time)*Globals::get()->clockInSeconds() < 200e-6) {
+						plot(19, xEnergy, x); // 719
+						plot(20, yEnergy, y); // 720
+					}
+				} else {
+					continue;
+				}
 			} // end-of-if(isDecsy)
 			
 			// --- by Yongchi Xiao; 01/13/2016, for piled-up traces --- //
@@ -954,11 +956,11 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				if( calib_trace_energy1F > 0 && calib_trace_energy1B > 0 &&
 					calib_trace_energy2F > 0 && calib_trace_energy2B > 0 &&
 					// upper cut
-					//	      calib_trace_energy1F < 300 &&
-					//	      calib_trace_energy2F < 300 &&
+					calib_trace_energy1F < 300 &&
+					calib_trace_energy2F < 300 &&
 					sidesConsist
 					) {
-					/*
+					
 					  cout << endl
 					  << "==================== DOUBLE TRACES =========================" << endl;	  
 					  // by Yongchi Xiao; 03/06/2016
@@ -979,7 +981,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 					  cout << "============================================================" << endl << endl << endl;
 					  //---------------------------------------------------------------------	    
 					  Notebook::get()->report(ss.str());	    	    	     	    
-					*/
+
 					for(vector<int>::iterator it = xTrace.begin();it != xTrace.end();it++){	  // 776 
 						plot(DD_DOUBLETRACE_FRONT_WITHOUT_MWPC,it-xTrace.begin(),traceNum,*it);
 					}
