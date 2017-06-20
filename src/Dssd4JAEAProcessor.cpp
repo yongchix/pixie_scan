@@ -64,7 +64,7 @@ Dssd4JAEAProcessor::Dssd4JAEAProcessor(double timeWindow,
 	// add associated type = pin
 	//	associatedTypes.insert("pin");
 	// add associated type = nai
-	//	associatedTypes.insert("nai");
+	associatedTypes.insert("nai");
     numDoubleTraces=0;
     
     stringstream ss;
@@ -135,7 +135,7 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(18, 1024, 64, "L.E. Protons-Back"); // 718
 	DeclareHistogram2D(19, 1024, 64, "L.E. Protons-Front, < 20us"); // 719
 	DeclareHistogram2D(20, 1024, 64, "L.E. Protons-Back, < 20us"); // 720
-	
+	DeclareHistogram1D(21, 2048, "Gamma E., Summed over plugs"); // 721
 
 	// 750-759   
 	/*
@@ -726,8 +726,11 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 	for(int i = 0; i < 4; i++) {
         if(firedCh[i] == 0) numFiredCh--;
     }
-    plugEnergySum /= numFiredCh;
-    plugEnergySum = 1.641*plugEnergySum + 114.920; // my own calibration                                                                                           
+	//    plugEnergySum /= numFiredCh;
+	//    plugEnergySum = 1.641*plugEnergySum + 114.920; // my own calibration                             
+	plugEnergySum = 0.414*plugEnergySum + 103.1; 
+	plot(21, plugEnergySum); // 721
+	
 	if( abs(plugEnergySum - 505) < 55) {
 		has511gamma = true; 
 		if(stamp511gamma < 0) 
