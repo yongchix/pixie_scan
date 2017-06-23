@@ -125,6 +125,7 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 					   energyBins, xBins, "DSSD back pos vs implant energy");
 
 	// --- //
+	/*
 	DeclareHistogram2D(11, 4096, 64, "DSSD Ion-Front"); // 711
 	DeclareHistogram2D(12, 4096, 64, "DSSD Ion-Back"); // 712
 	DeclareHistogram2D(13, 4096, 64, "DSSD Decay-Front"); // 713
@@ -135,7 +136,8 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(18, 1024, 64, "L.E. Protons-Back"); // 718
 	DeclareHistogram2D(19, 1024, 64, "L.E. Protons-Front, < 20us"); // 719
 	DeclareHistogram2D(20, 1024, 64, "L.E. Protons-Back, < 20us"); // 720
-	
+	*/
+	DeclareHistogram2D(21, 2048, 2048, "Correlation Matrix, DSSD, 300 us"); // 721
 
 	// 750-759   
 	/*
@@ -577,7 +579,7 @@ bool Dssd4JAEAProcessor::PreProcess(RawEvent &event) {
 
 static PixelEvent implant[40][40] = {}; // for implants only;
 static double stamp511gamma = -1;
-const int decaySize = 1;
+const int decaySize = 2;
 static PixelEvent proton[decaySize][40][40] = {}; // for beta-decays only;
 
 bool Dssd4JAEAProcessor::Process(RawEvent &event)
@@ -867,10 +869,11 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 					implant[x][y].energyB = yEnergy;
 					implant[x][y].time = time;
 					// plot 
-					plot(11, xEnergy/5., x); // 711
-					plot(12, yEnergy/5., y); // 712
+					//					plot(11, xEnergy/5., x); // 711
+					//					plot(12, yEnergy/5., y); // 712
 					// clear
 					proton[0][x][y].Clear();
+					proton[1][x][y].Clear();
 				} // an implantation
 				else {
 					if(xEnergy > (25000/3.96)){ // changed by Yongchi Xiao; 11/25/2015
@@ -879,10 +882,11 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 						implant[x][y].energyB = yEnergy;
 						implant[x][y].time = time;
 						// plot
-						plot(11, xEnergy, 11); // 711
-						plot(12, yEnergy, 12); // 712
+						//						plot(11, xEnergy, 11); // 711
+						//						plot(12, yEnergy, 12); // 712
 						// clear
 						proton[0][x][y].Clear();
+						proton[1][x][y].Clear();
 					}
 					// a possible decay event 
 					else if(xEnergy < (15000/3.96) && yEnergy < (15000/3.9) // energy < 15 MeV
@@ -903,16 +907,35 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			// deal with decay signals
 			if(isDecay) {
 				// plot
-				plot(13, xEnergy, x); // 713
-				plot(14, yEnergy, y); // 714
+				//				plot(13, xEnergy, x); // 713
+				//				plot(14, yEnergy, y); // 714
 				if(implant[x][y].time > 0) { // preceding ion found
-					plot(15, xEnergy, (time - implant[x][y].time)*1e-2); // 715
-					plot(16, yEnergy, (time - implant[x][y].time)*1e-3); // 716
-					plot(17, xEnergy, x); // 717
-					plot(18, yEnergy, y); // 718
+					//					plot(15, xEnergy, (time - implant[x][y].time)*1e-2); // 715
+					//					plot(16, yEnergy, (time - implant[x][y].time)*1e-3); // 716
+					//					plot(17, xEnergy, x); // 717
+					//					plot(18, yEnergy, y); // 718
+					/*
 					if((time - implant[x][y].time)*Globals::get()->clockInSeconds() < 200e-6) {
 						plot(19, xEnergy, x); // 719
 						plot(20, yEnergy, y); // 720
+					}
+					*/
+				    if(proton[0][x][y].time > 0) { // 1st decay found
+						if((time - proton[0][x][y].time)*Globals::get()->clockInSeconds() < 300e-6) {
+							proton[1][x][y].time = time;
+							proton[1][x][y].energyF = xEnergy;
+							proton[1][x][y].energyB = yEnergy;
+							// plot
+							plot(21, proton[0][x][y].energyF, proton[0][x][y].energyB); // 721
+						} 
+						// reset decay chain
+						implant[x][y].Clear();
+						proton[0][x][y].Clear();
+						proton[1][x][y].Clear();
+					} else {
+						proton[0][x][y].time = time;
+						proton[0][x][y].energyF = xEnergy;
+						proton[0][x][y].energyB = yEnergy;
 					}
 				} else {
 					continue;
@@ -956,8 +979,8 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 				if( calib_trace_energy1F > 0 && calib_trace_energy1B > 0 &&
 					calib_trace_energy2F > 0 && calib_trace_energy2B > 0 &&
 					// upper cut
-					calib_trace_energy1F < 300 &&
-					calib_trace_energy2F < 300 &&
+					trace_energy1F < 300 &&
+					trace_energy2F < 300 &&
 					sidesConsist
 					) {
 					
