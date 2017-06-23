@@ -926,7 +926,7 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 							proton[1][x][y].energyF = xEnergy;
 							proton[1][x][y].energyB = yEnergy;
 							// plot
-							plot(21, proton[0][x][y].energyF, proton[0][x][y].energyB); // 721
+							plot(21, proton[0][x][y].energyF, proton[1][x][y].energyB); // 721
 						} 
 						// reset decay chain
 						implant[x][y].Clear();
