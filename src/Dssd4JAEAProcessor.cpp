@@ -137,7 +137,7 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(19, 1024, 64, "L.E. Protons-Front, < 20us"); // 719
 	DeclareHistogram2D(20, 1024, 64, "L.E. Protons-Back, < 20us"); // 720
 	*/
-	DeclareHistogram2D(21, 4096, 4096, "Correlation Matrix, DSSD, 30 ms"); // 721
+	DeclareHistogram2D(21, 4096, 4096, "Correlation Matrix, DSSD, 5 s"); // 721
 
 	// 750-759   
 	/*
@@ -921,21 +921,24 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 					}
 					*/
 				    if(proton[0][x][y].time > 0) { // 1st decay found
-						if((time - proton[0][x][y].time)*Globals::get()->clockInSeconds() < 30e-3) {
+						if((time - proton[0][x][y].time)*Globals::get()->clockInSeconds() < 5) {
 							proton[1][x][y].time = time;
 							proton[1][x][y].energyF = xEnergy;
 							proton[1][x][y].energyB = yEnergy;
 							// plot
 							plot(21, proton[0][x][y].energyF, proton[1][x][y].energyB); // 721
-							outfile.open("alpha-matrix.out", std::iostream::out | std::iostream::app); 
-							outfile << x << "  " << y << "  " 
-									<< proton[0][x][y].energyF << "  " 
-									<< proton[1][x][y].energyF << "  ";
-							outfile	<< std::setprecision(15) 
-									<< (time - proton[0][x][y].time)*Globals::get()->clockInSeconds()
-									<< endl;
-							outfile.close();
-						} 
+							if( proton[1][x][y].energyF > 2117 && proton[1][x][y].energyF < 2258
+								&& proton[0][x][y].energyF > 944 && proton[0][x][y].energyF < 1013) {
+								outfile.open("alpha-matrix.out", std::iostream::out | std::iostream::app); 
+								outfile << x << "  " << y << "  " 
+										<< proton[0][x][y].energyF << "  " 
+										<< proton[1][x][y].energyF << "  ";
+								outfile	<< std::setprecision(15) 
+										<< (time - proton[0][x][y].time)*Globals::get()->clockInSeconds()
+										<< endl;
+								outfile.close();
+							} 
+						}
 						// reset decay chain
 						implant[x][y].Clear();
 						proton[0][x][y].Clear();
