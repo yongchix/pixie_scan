@@ -137,7 +137,7 @@ void Dssd4JAEAProcessor::DeclarePlots(void)
 	DeclareHistogram2D(19, 1024, 64, "L.E. Protons-Front, < 20us"); // 719
 	DeclareHistogram2D(20, 1024, 64, "L.E. Protons-Back, < 20us"); // 720
 	*/
-	DeclareHistogram2D(21, 4096, 4096, "Correlation Matrix, DSSD, 5 s"); // 721
+	DeclareHistogram2D(21, 4096, 4096, "Correlation Matrix, DSSD, 200 ms"); // 721
 
 	// 750-759   
 	/*
@@ -737,16 +737,6 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 		else {
 			stamp511gamma = plugTime;
 		} 
-			
-		// correlation between PIN and NaI
-		if(hasPinFront) {
-			for(int i = 0; i < vecPinFront.size(); i++) 
-				plot(9, vecPinFront.at(i).energy); // 709
-		} else if(hasPinBack) {
-			for(int i = 0; i < vecPinBack.size(); i++) 
-				plot(10, vecPinBack.at(i).energy); // 710
-		}
-			
 	}
 	// --- plug signals processed --- //
 
@@ -906,50 +896,43 @@ bool Dssd4JAEAProcessor::Process(RawEvent &event)
 			
 			// deal with decay signals
 			if(isDecay) {
-				// plot
-				//				plot(13, xEnergy, x); // 713
-				//				plot(14, yEnergy, y); // 714
-				if(implant[x][y].time > 0) { // preceding ion found
-					//					plot(15, xEnergy, (time - implant[x][y].time)*1e-2); // 715
-					//					plot(16, yEnergy, (time - implant[x][y].time)*1e-3); // 716
-					//					plot(17, xEnergy, x); // 717
-					//					plot(18, yEnergy, y); // 718
-					/*
-					if((time - implant[x][y].time)*Globals::get()->clockInSeconds() < 200e-6) {
-						plot(19, xEnergy, x); // 719
-						plot(20, yEnergy, y); // 720
-					}
-					*/
-				    if(proton[0][x][y].time > 0) { // 1st decay found
-						if((time - proton[0][x][y].time)*Globals::get()->clockInSeconds() < 5) {
-							proton[1][x][y].time = time;
-							proton[1][x][y].energyF = xEnergy;
-							proton[1][x][y].energyB = yEnergy;
-							// plot
-							plot(21, proton[0][x][y].energyF, proton[1][x][y].energyB); // 721
-							if( proton[1][x][y].energyF > 2117 && proton[1][x][y].energyF < 2258
-								&& proton[0][x][y].energyF > 944 && proton[0][x][y].energyF < 1013) {
-								outfile.open("alpha-matrix.out", std::iostream::out | std::iostream::app); 
-								outfile << x << "  " << y << "  " 
-										<< proton[0][x][y].energyF << "  " 
-										<< proton[1][x][y].energyF << "  ";
-								outfile	<< std::setprecision(15) 
-										<< (time - proton[0][x][y].time)*Globals::get()->clockInSeconds()
-										<< endl;
-								outfile.close();
-							} 
+				if(!has511gamma) {
+					if(implant[x][y].time > 0) { // preceding ion found
+						if(proton[0][x][y].time > 0) { // 1st decay found
+							if((time - proton[0][x][y].time)*Globals::get()->clockInSeconds() < 0.2) {
+								proton[1][x][y].time = time;
+								proton[1][x][y].energyF = xEnergy;
+								proton[1][x][y].energyB = yEnergy;
+								// plot
+								plot(21, proton[0][x][y].energyF, proton[1][x][y].energyB); // 721
+								if( proton[1][x][y].energyF > 2117 && proton[1][x][y].energyF < 2258
+									&& proton[0][x][y].energyF > 944 && proton[0][x][y].energyF < 1013) {
+									outfile.open("alpha-matrix.out", std::iostream::out | std::iostream::app); 
+									outfile << x << "  " << y << "  " 
+											<< proton[0][x][y].energyF << "  " 
+											<< proton[1][x][y].energyF << "  ";
+									outfile	<< std::setprecision(15) 
+											<< (time - proton[0][x][y].time)*Globals::get()->clockInSeconds()
+											<< endl;
+									outfile.close();
+								} 
+							}
+							// reset decay chain
+							implant[x][y].Clear();
+							proton[0][x][y].Clear();
+							proton[1][x][y].Clear();
+						} else {
+							proton[0][x][y].time = time;
+							proton[0][x][y].energyF = xEnergy;
+							proton[0][x][y].energyB = yEnergy;
 						}
-						// reset decay chain
-						implant[x][y].Clear();
-						proton[0][x][y].Clear();
-						proton[1][x][y].Clear();
 					} else {
-						proton[0][x][y].time = time;
-						proton[0][x][y].energyF = xEnergy;
-						proton[0][x][y].energyB = yEnergy;
+						continue;
 					}
-				} else {
-					continue;
+				} else { // if decay gated on 511 keV gamma
+					implant[x][y].Clear();
+					proton[0][x][y].Clear();
+					proton[1][x][y].Clear();
 				}
 			} // end-of-if(isDecsy)
 			
